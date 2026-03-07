@@ -6,16 +6,19 @@ import google.generativeai as genai
 import PyPDF2
 import os
 
-# 1. 페이지 설정
-st.set_page_config(page_title="My Secret-ary", page_icon="🤖", layout="wide")
+# 1. 페이지 설정 (브라우저 탭에 표시될 이름)
+st.set_page_config(
+    page_title="나의 스마트 진로 비서 - 꿈-잇(IT)", 
+    page_icon="🤖", 
+    layout="wide"
+)
 
 # 2. 제미나이 AI 및 구글 시트 연결
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# 유료 티어의 성능을 100% 발휘하는 최신형 엔진
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 3. PDF 자료 로드 함수 (캐싱 적용)
+# 3. 데이터 로드 함수
 @st.cache_data
 def load_pdf_data():
     text = ""
@@ -25,90 +28,100 @@ def load_pdf_data():
             for page in reader.pages:
                 text += page.extract_text() + "\n"
         return text
-    return "참고할 학교 자료가 없습니다."
+    return "현재 학습된 학교 데이터가 없습니다."
 
 school_knowledge = load_pdf_data()
 
-# 4. 학생 인증 (비밀코드 체크)
+# 4. 학생 인증
 secret_code = st.query_params.get("id")
 if not secret_code:
-    st.error("🚨 선생님이 카톡으로 보내준 '비밀 링크'로 접속해주세요!")
+    st.error("🚨 선생님이 보내주신 '나만의 비밀 링크'로 접속해 주세요!")
     st.stop()
 
 try:
     student_db = conn.read(worksheet="학생명단", ttl=600)
     matched_student = student_db[student_db['비밀코드'] == secret_code]
     if matched_student.empty:
-        st.error("🚨 유효하지 않은 비밀코드입니다.")
+        st.error("🚨 인증 정보가 올바르지 않습니다.")
         st.stop()
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
-except Exception:
-    st.error("학생 명단을 불러오는 중 오류가 발생했습니다.")
+except:
+    st.error("데이터를 불러오는 중입니다. 잠시만 기다려 주세요.")
     st.stop()
 
 # ==========================================
-# 🎨 UI 영역: 사이드바
+# 🎨 UI 영역: 사이드바 (친절한 가이드 추가)
 # ==========================================
 with st.sidebar:
-    st.header(f"🧑‍🎓 {student_name} 학생의 방")
+    st.title("👋 반가워요!")
+    st.subheader(f"{student_name} 학생, 환영합니다!")
     st.markdown("---")
-    persona = st.selectbox("🤖 나의 비서 성격은?", ["꼼꼼한 비서 (J성향)", "유쾌한 비서 (공감형)", "조언형 비서 (코칭형)"])
-    topic = st.selectbox("📌 나의 관심사?", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
+    
+    # 🌟 비서 성향 선택 안내 멘트
+    st.info("💡 **나의 맞춤 비서를 설정해 보세요!**\n고민을 들어줄 친구가 필요한지, 정확한 분석이 필요한지에 따라 비서의 성격을 고를 수 있어요.")
+    
+    persona = st.selectbox(
+        "🤖 비서의 성격을 골라주세요", 
+        ["다정한 공감 친구 (응원과 격려)", "꼼꼼한 전문 비서 (정확한 정보)", "냉철한 전략가 (핵심 해결책)"]
+    )
+    
+    st.markdown("---")
+    topic = st.selectbox(
+        "📌 상담받고 싶은 주제", 
+        ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"]
+    )
 
+    # 교사용 메뉴 (비밀번호는 유지)
     st.markdown("---")
-    with st.expander("🔐 선생님 전용 (관리자)"):
-        admin_pw = st.text_input("비밀번호", type="password")
-        if admin_pw == "0486": 
-            st.success("관리자 인증 성공!")
-            uploaded_file = st.file_uploader("새 PDF 교체하기", type="pdf")
-            if uploaded_file:
+    with st.expander("🔐 교사용 관리 메뉴"):
+        if st.text_input("관리자 암호", type="password") == "0486":
+            file = st.file_uploader("학교 PDF 업데이트", type="pdf")
+            if file:
                 with open("school_info.pdf", "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    f.write(file.getbuffer())
                 load_pdf_data.clear()
-                st.info("✅ 자료가 교체되었습니다. 새로고침(F5) 하세요.")
-        elif admin_pw:
-            st.error("비밀번호가 틀렸습니다.")
-
-st.title("🤖 My Secret-ary (나만의 진로 비서)")
+                st.success("자료 업데이트 완료!")
 
 # ==========================================
-# 🌟 주제별 포함 정보 목록 및 질문 안내
+# 🌟 메인 화면 (친근한 제목으로 변경)
 # ==========================================
+# 
+st.title("🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
+st.markdown(f"##### {student_name} 학생의 꿈을 위해 AI 비서가 함께 고민할게요. ✨")
+
+# 주제별 상세 정보 안내 (리스트화)
 if topic == "① 학교생활 적응":
     st.info(f"""
-    📘 **[학교생활 적응] 이 방에서 알 수 있는 정보:**
-    - **연간 학사 일정:** 시험 기간, 축제, 체험학습 날짜 등
-    - **창체 활동:** 자율/봉사/동아리 활동 규정 및 신청 방법
-    - **학교 생활규정:** 일과 시간표, 복장 및 두발 규정, 상벌점 제도
-    - **시설 이용:** 도서관, 자습실 이용 시간 및 방법
+    📘 **[학교생활 적응] 이 방에서는 이런 걸 도와줄게!**
+    - **학교의 모든 것:** 시험 일정, 학교 축제, 등교 시간표
+    - **우리들의 약속:** 벌점 규정, 교복 입는 법, 자습실 이용 규칙
+    - **즐거운 활동:** 동아리 종류와 신청법, 봉사활동 시간 채우기
     
-    ❓ **질문 예시:** "시험 범위 공지는 보통 언제 해?", "동아리 기수제 규정이 어떻게 돼?"
+    ❓ **질문 예시:** "우리 학교 동아리 신청 언제까지야?", "벌점 지우는 방법 알려줘!"
     """)
 elif topic == "② 진로 탐색":
     st.info(f"""
-    🔍 **[진로 탐색] 이 방에서 알 수 있는 정보:**
-    - **계열별 정보:** 인문/사회/자연/공학 등 계열별 특징
-    - **추천 활동:** 희망 진로와 관련된 독서 목록 및 교내 대회
-    - **핵심 역량:** 특정 직업/학과에서 중요하게 보는 성격과 능력
-    - **선배들의 사례:** 졸업생들의 주요 진로 선택 흐름 요약
+    🔍 **[진로 탐색] 이 방에서는 이런 걸 도와줄게!**
+    - **내 꿈 찾기:** 나에게 어울리는 직업과 학과 추천
+    - **생기부 채우기:** 전공에 도움되는 권장 도서와 교내 활동
+    - **역량 기르기:** 특정 직업을 갖기 위해 지금 해야 할 일들
     
-    ❓ **질문 예시:** "경찰이 되고 싶은데 추천하는 동아리 있어?", "의료 계열 권장 도서 알려줘."
+    ❓ **질문 예시:** "경찰이 꿈인데 어떤 책을 읽으면 좋아?", "나에게 맞는 전공은 뭘까?"
     """)
 elif topic == "③ 상급학년 준비":
     st.info(f"""
-    🎯 **[상급학년 준비] 이 방에서 알 수 있는 정보:**
-    - **선택과목 가이드:** 2학년 때 배우는 과목들의 특징과 수능 연계성
-    - **전공 적합성:** 내가 가고 싶은 학과에 유리한 선택과목 리스트
-    - **학점제 안내:** 고교학점제 운영 방식 및 수강 신청 유의사항
-    - **학년별 로드맵:** 1학년 겨울방학 때 준비해야 할 필수 항목
+    🎯 **[상급학년 준비] 이 방에서는 이런 걸 도와줄게!**
+    - **과목 선택하기:** 2학년 때 배우는 과목들의 특징(물리, 경제 등)
+    - **나만의 시간표:** 내가 가고 싶은 학과에 유리한 과목 추천
+    - **학점제 미리보기:** 수강 신청 방법과 유의해야 할 점
     
-    ❓ **질문 예시:** "미디어학과 지망생인데 미적분을 꼭 들어야 해?", "사탐 과목 중에 뭐가 제일 인기 많아?"
+    ❓ **질문 예시:** "간호학과 가려면 화학 꼭 들어야 해?", "미적분은 언제 배우는 거야?"
     """)
 
 st.markdown("---")
 
-# 💬 채팅 내역 로드
+# 대화 기록 표시
 try:
     df = conn.read(worksheet="질문기록", ttl=0)
     df = df.dropna(how='all')
@@ -121,51 +134,48 @@ try:
 except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
-# 💬 채팅 처리 (유료 티어 고속 스트리밍 적용)
-if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
+# AI 상담 및 데이터 저장
+if user_question := st.chat_input("AI 비서에게 무엇이든 물어보세요!"):
     with st.chat_message("user"):
         st.write(f"**[{topic}]** {user_question}")
         
     system_prompt = f"""
-    너는 고등학교 1학년 진로 비서야. 성격: {persona}
-    [참고자료] {school_knowledge}
+    너는 고등학교 1학년 학생의 다정한 진로 비서야. 성격은 '{persona}' 스타일로 대답해줘.
+    [우리 학교 정보] {school_knowledge}
     
-    [답변 규칙]
-    - [핵심요약] 태그로 핵심을 1~2줄 요약.
-    - [자세한설명] 태그로 친절한 설명.
-    질문: {user_question}
+    [답변 약속]
+    1. [핵심요약]: 가장 중요한 답변을 맨 처음에 1-2줄로 짧게 요약해줘.
+    2. [자세한설명]: 친절하고 구체적으로 설명해줘.
+    3. 반드시 한국어로, 학생의 눈높이에서 대답해줘.
     """
     
     with st.chat_message("assistant"):
         try:
             response = model.generate_content(system_prompt, stream=True)
             
-            # 실시간 타자 효과 생성
             def stream_gen():
                 for chunk in response:
                     if chunk.text:
                         yield chunk.text
             
-            full_response_text = st.write_stream(stream_gen())
+            full_text = st.write_stream(stream_gen())
             
-            # 요약본 추출 로직
+            # 시트 저장용 요약본 추출
             try:
-                summary_to_save = full_response_text.split("[자세한설명]")[0].replace("[핵심요약]", "").strip()
+                summary = full_text.split("[자세한설명]")[0].replace("[핵심요약]", "").strip()
             except:
-                summary_to_save = full_response_text
+                summary = full_text
             
-            # 데이터 저장
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 시트 업데이트
             new_row = pd.DataFrame([{
-                "날짜": now, "학번": student_id, "이름": student_name, 
-                "주제": topic, "비서성격": persona, "질문내용": user_question, "AI답변": summary_to_save
+                "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "학번": student_id, "이름": student_name, "주제": topic,
+                "비서성격": persona, "질문내용": user_question, "AI답변": summary
             }])
-            
-            updated_df = pd.concat([df, new_row], ignore_index=True)
-            conn.update(worksheet="질문기록", data=updated_df)
+            conn.update(worksheet="질문기록", data=pd.concat([df, new_row], ignore_index=True))
             
         except Exception as e:
             if "ResourceExhausted" in str(e):
-                st.error("🚨 사용량이 많습니다. 1분만 기다려주세요! (유료 티어 반영 중일 수 있습니다.)")
+                st.error("🚨 지금은 상담 예약이 꽉 찼어요! 1분만 기다렸다가 다시 말을 걸어줄래?")
             else:
-                st.error(f"오류가 발생했습니다: {e}")
+                st.error(f"앗, 상담 중에 잠깐 문제가 생겼어: {e}")
