@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 import google.generativeai as genai
-import PyPDF2
 import os
 
 # 1. 페이지 설정
@@ -14,25 +13,27 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 3. 모든 PDF 데이터 로드
+# 3. 🌟 [핵심 변경] 글자만 뽑지 않고, PDF 파일 자체를 통째로 AI에게 넘길 준비
 @st.cache_data
-def load_all_pdf_data():
-    combined_text = ""
+def load_pdf_files():
+    pdf_parts = []
     pdf_files = [f for f in os.listdir(".") if f.endswith(".pdf")]
+    
     if not pdf_files: 
-        return "데이터 없음"
+        return []
     
     for file_name in pdf_files:
         try:
             with open(file_name, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                for page in reader.pages:
-                    combined_text += page.extract_text() + "\n"
+                pdf_parts.append({
+                    "mime_type": "application/pdf",
+                    "data": f.read()  # 파일 원본 바이트 그대로 저장
+                })
         except: 
             continue
-    return combined_text
+    return pdf_parts
 
-school_knowledge = load_all_pdf_data()
+pdf_documents = load_pdf_files()
 
 # 4. 학생 인증
 secret_code = st.query_params.get("id")
@@ -50,28 +51,28 @@ except:
     st.stop()
 
 # ==========================================
-# 🎨 UI 영역 1: 사이드바 (관리자 전용 & 동기화 버튼 추가)
+# 🎨 UI 영역 1: 사이드바 
 # ==========================================
 with st.sidebar:
     st.markdown("### 🔐 교사용 관리 메뉴")
     if st.text_input("비밀번호 입력", type="password") == "0486":
         
-        # 🌟 [신규 추가] 깃허브 업로드 시 수동 동기화 버튼
+        # 동기화 버튼 (캐시 초기화)
         if st.button("🔄 깃허브 데이터 동기화 (캐시 초기화)"):
-            load_all_pdf_data.clear() # 기존 기억 삭제
+            load_pdf_files.clear() 
             st.success("데이터 동기화 완료! 이제 새 파일을 인식합니다.")
-            st.rerun() # 화면 새로고침
+            st.rerun() 
             
         st.markdown("---")
-        file = st.file_uploader("새 PDF 파일 업로드 (앱에서 직접)", type="pdf")
+        file = st.file_uploader("새 PDF 파일 업로드", type="pdf")
         if file:
             with open(file.name, "wb") as f: 
                 f.write(file.getbuffer())
-            load_all_pdf_data.clear()
+            load_pdf_files.clear()
             st.success("파일 업데이트 완료!")
 
 # ==========================================
-# 🌟 UI 영역 2: 메인 화면
+# 🌟 UI 영역 2: 메인 화면 
 # ==========================================
 st.markdown("### 🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
 st.markdown(f"**반가워요, {student_name} 학생! 환영합니다 🎓**")
@@ -104,7 +105,7 @@ except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
 # ==========================================
-# 💬 채팅 처리
+# 💬 채팅 처리 (Vision 기능으로 PDF 직접 읽기)
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     with st.chat_message("user"):
@@ -114,20 +115,20 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
 
     [답변 가이드라인]
-    1. 아래 [학교 데이터]를 읽고 질문에 대한 '정확하고 직접적인 답'을 최우선으로 찾으십시오.
-    2. 데이터에서 정답을 찾았다면, 선택된 페르소나의 말투에 어울리는 '자연스러운 한두 문장'으로 짧고 명확하게 대답하십시오.
-    3. 서론이나 엉뚱한 정보(TMI)는 절대 추가하지 마십시오.
-    4. 🚨중요🚨: [학교 데이터]에 질문에 대한 명확한 답이 없다면, AI의 일반 지식을 바탕으로 유익한 답변을 제공하십시오. 단, 답변 마지막에 반드시 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라는 취지의 안내 멘트를 페르소나 말투에 맞게 자연스럽게 덧붙이십시오.
-
-    [학교 데이터]
-    {school_knowledge}
-    
-    질문: {user_question}
+    1. 함께 첨부된 [학교 PDF 원본 문서들]을 시각적으로 직접 읽고, 표나 그림의 형태까지 고려하여 질문에 대한 '정확하고 직접적인 답'을 최우선으로 찾으십시오.
+    2. 데이터에서 정답을 찾았다면, 선택된 페르소나의 말투에 어울리는 '자연스러운 한두 문장'으로 짧고 명확하게 대답하십시오. (서론이나 TMI 절대 금지)
+    3. 🚨중요🚨: 첨부된 PDF에 질문에 대한 명확한 답이 없다면, AI의 일반 지식을 바탕으로 유익한 답변을 제공하십시오. 단, 마지막에 반드시 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라는 안내 멘트를 페르소나 말투에 맞게 자연스럽게 덧붙이십시오.
     """
     
     with st.chat_message("assistant"):
         try:
-            response = model.generate_content(system_prompt, stream=True)
+            if not pdf_documents:
+                contents = [system_prompt, user_question]
+            else:
+                # 🌟 [초강력 기능] 프롬프트 + 사용자 질문 + PDF 원본 파일들을 한 번에 넘김!
+                contents = [system_prompt, user_question] + pdf_documents
+
+            response = model.generate_content(contents, stream=True)
             def stream_gen():
                 for chunk in response:
                     if chunk.text: 
