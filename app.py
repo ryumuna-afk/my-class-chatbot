@@ -114,12 +114,14 @@ st.markdown("---")
 # ==========================================
 # 💬 채팅 영역 & AI 답변 생성
 # ==========================================
-# '질문기록' 시트에서 과거 대화 불러오기
+# '질문기록' 시트에서 과거 대화 불러오기 (데이터 증발 방지 시스템 탑재)
 try:
+    st.cache_data.clear() # 캐시를 강제로 한 번 더 비워줍니다.
     df = conn.read(worksheet="질문기록", usecols=list(range(7)), ttl=0)
-except Exception:
-    df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
-
+    df = df.dropna(how='all') # 구글 시트의 쓸데없는 빈 줄을 깔끔하게 지워줍니다.
+except Exception as e:
+    st.error("🚨 잠시 통신 오류가 발생했습니다. (데이터 보호를 위해 저장을 차단합니다.) 새로고침(F5)을 눌러주세요!")
+    st.stop() # 데이터를 완벽하게 못 읽어오면, 절대 덮어쓰지 못하도록 앱을 그 자리에서 멈춥니다!
 if not df.empty:
     my_records = df[df['학번'] == student_id]
     for index, row in my_records.iterrows():
@@ -169,4 +171,5 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     }])
     
     updated_data = pd.concat([df, new_data], ignore_index=True)
+
     conn.update(worksheet="질문기록", data=updated_data)
