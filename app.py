@@ -5,13 +5,11 @@ from streamlit_gsheets import GSheetsConnection
 import google.generativeai as genai
 import PyPDF2
 import os
-import time
 
 # 1. 페이지 설정
 st.set_page_config(page_title="My Secret-ary", page_icon="🤖", layout="wide")
 
 # 2. 제미나이 AI 및 구글 시트 연결
-# gemini-1.5-flash가 가장 안정적입니다. (최신 버전 이름 주의)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-1.5-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -26,11 +24,11 @@ def load_pdf_data():
             for page in reader.pages:
                 text += page.extract_text() + "\n"
         return text
-    return "학교 자료가 없습니다."
+    return "참고할 추가 학교 자료가 없습니다."
 
 school_knowledge = load_pdf_data()
 
-# 4. 학생 인증
+# 4. 학생 인증 (비밀코드)
 secret_code = st.query_params.get("id")
 if not secret_code:
     st.error("🚨 올바른 링크로 접속해주세요!")
@@ -45,10 +43,10 @@ try:
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
 except Exception:
-    st.error("서버 연결 오류입니다. 잠시 후 다시 시도하세요.")
+    st.error("학생 명단을 불러오는 데 실패했습니다.")
     st.stop()
 
-# 🎨 UI
+# 🎨 UI 영역: 사이드바
 with st.sidebar:
     st.header(f"🧑‍🎓 {student_name} 학생의 방")
     persona = st.selectbox("🤖 비서 성격", ["꼼꼼한 비서", "유쾌한 비서", "조언형 비서"])
@@ -62,12 +60,22 @@ with st.sidebar:
                 with open("school_info.pdf", "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 load_pdf_data.clear()
-                st.info("✅ 업데이트 완료!")
+                st.info("✅ 업데이트 완료! 새로고침(F5) 하세요.")
 
+# 메인 UI
 st.title("🤖 My Secret-ary")
+
+# 주제별 질문 가이드 (복구 완료!)
+if topic == "① 학교생활 적응":
+    st.info("💡 질문 예시: '우리 학교 봉사활동 시간은 1년에 몇 시간 채워야 해?', '야간자율학습 신청은 어떻게 해?'")
+elif topic == "② 진로 탐색":
+    st.info("💡 질문 예시: '나에게 맞는 직업을 추천해 줘.', '마케터가 되려면 고등학교 때 무엇을 하면 좋을까?'")
+elif topic == "③ 상급학년 준비":
+    st.info("💡 질문 예시: '간호학과 진학을 위해 생명과학을 선택해야 할까?', '경영학과를 위한 2학년 시간표 추천해 줘.'")
+
 st.markdown("---")
 
-# 채팅 내역 로드
+# 💬 채팅 내역 로드
 try:
     df = conn.read(worksheet="질문기록", ttl=0)
     df = df.dropna(how='all')
@@ -88,22 +96,21 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     system_prompt = f"""
     너는 친절한 학교 진로 비서야. 성격: {persona}
     [학교 자료] {school_knowledge}
-    
     [답변 규칙]
-    1. [핵심요약] 태그로 핵심을 1줄 요약해줘.
-    2. [자세한설명] 태그로 상세히 설명해줘.
+    - [핵심요약] 태그로 핵심을 1줄 요약해줘.
+    - [자세한설명] 태그로 상세히 설명해줘.
     학생 질문: {user_question}
     """
     
     with st.chat_message("assistant"):
-        # 답변 생성 및 에러 처리 (ResourceExhausted 대응)
         try:
             response = model.generate_content(system_prompt, stream=True)
             
-            # 제너레이터로 답변 스트리밍
+            # 스트리밍 방식 답변 출력
             def stream_gen():
                 for chunk in response:
-                    yield chunk.text
+                    if chunk.text:
+                        yield chunk.text
             
             ai_answer = st.write_stream(stream_gen())
             
@@ -119,7 +126,4 @@ if user_question := st.chat_input("질문을 입력하세요!"):
             conn.update(worksheet="질문기록", data=pd.concat([df, new_row], ignore_index=True))
             
         except Exception as e:
-            if "ResourceExhausted" in str(e):
-                st.error("🚨 너무 많이 질문했어요! 잠시(1분 정도) 기다렸다가 다시 질문해주세요.")
-            else:
-                st.error("오류 발생: " + str(e))
+            st.error("🚨 오류 발생: 잠시 후 다시 시도해주세요.")
