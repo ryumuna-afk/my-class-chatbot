@@ -2,6 +2,6 @@ streamlit
 pandas
 streamlit-gsheets
 google-generativeai
-PyPDF2
+pypdf
 openpyxl
 pillow
