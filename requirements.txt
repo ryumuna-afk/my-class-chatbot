@@ -1,5 +1,7 @@
 streamlit
-st-gsheets-connection
 pandas
+streamlit-gsheets
 google-generativeai
 PyPDF2
+openpyxl
+pillow
