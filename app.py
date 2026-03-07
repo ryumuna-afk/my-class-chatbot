@@ -4,70 +4,70 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 import google.generativeai as genai
 import os
-import PyPDF2
+from pypdf import PdfReader  # 🌟 이제 requirements.txt에 pypdf가 있으니 문제없습니다.
 from PIL import Image
 
-# 1. 설정
+# 1. 환경 설정
 st.set_page_config(page_title="꿈-잇(IT) 비서", layout="wide")
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 2. 데이터 로드 (PyPDF2로 통일)
+# 2. 학교 자료 로드
 @st.cache_data
-def load_data():
-    data_list = []
-    # 폴더 내 모든 파일 스캔
-    for file in os.listdir("."):
-        if file.endswith(".pdf"):
-            with open(file, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
+def load_global_files():
+    file_parts = []
+    # PDF, 엑셀, 이미지 모두 지원
+    for file_name in os.listdir("."):
+        try:
+            if file_name.lower().endswith(".pdf"):
+                reader = PdfReader(file_name)
                 text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-                data_list.append(f"--- [PDF 자료: {file}] ---\n{text}")
-        elif file.lower().endswith((".xlsx", ".xls", ".csv")):
-            df = pd.read_csv(file) if file.endswith(".csv") else pd.read_excel(file)
-            data_list.append(f"--- [엑셀 자료: {file}] ---\n{df.to_csv(index=False)}")
-        elif file.lower().endswith((".png", ".jpg", ".jpeg")):
-            data_list.append(f"--- [이미지 자료: {file}] ---")
-    return "\n\n".join(data_list)
+                file_parts.append(f"--- [학교 PDF: {file_name}] ---\n{text}")
+            elif file_name.lower().endswith((".xlsx", ".xls", ".csv")):
+                df = pd.read_csv(file_name) if file_name.endswith(".csv") else pd.read_excel(file_name)
+                file_parts.append(f"--- [학교 엑셀: {file_name}] ---\n{df.to_csv(index=False)}")
+            elif file_name.lower().endswith((".png", ".jpg", ".jpeg")):
+                file_parts.append(f"--- [이미지 파일: {file_name}] ---")
+        except: continue
+    return "\n\n".join(file_parts)
 
-school_knowledge = load_data()
+school_knowledge = load_global_files()
 
-# 3. UI 및 인증
-st.title("🤖 꿈-잇(IT) 비서")
-# 인증 로직 (기존 유지)
-# ... (생략) ...
+# 3. 인증 로직
+secret_code = st.query_params.get("id")
+if not secret_code: st.stop()
+student_db = conn.read(worksheet="학생명단", ttl=600)
+matched = student_db[student_db['비밀코드'] == secret_code]
+if matched.empty: st.stop()
+student_name = matched.iloc[0]['이름']
 
-# 4. 대화 기억하기 (Session State 활용)
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# 4. 채팅 기억 관리
+if "messages" not in st.session_state: st.session_state.messages = []
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+st.title(f"🤖 {student_name} 학생의 꿈-잇(IT) 비서")
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-# 5. 질문 처리 (문맥 우선순위 강화)
+# 5. 질문 처리
 if prompt := st.chat_input("질문을 입력하세요!"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # 최근 대화 내용을 요약하여 문맥으로 전달
+        # 이전 대화 3개 문맥 포함
         context = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-4:]])
         
         system_prompt = f"""
-        당신은 고등학교 진로 비서입니다.
+        당신은 학교 진로 상담 비서입니다.
         [학교 자료]: {school_knowledge}
+        [최근 대화 맥락]: {context}
         
-        [행동 수칙 - 매우 중요]
-        1. 【최근 대화】를 먼저 확인해. 만약 학생이 '1학년'처럼 짧게 물었다면, 직전 대화의 맥락(예: 중간고사)을 이어받아 '1학년 중간고사'에 대한 정보를 학교 자료에서 찾아야 해.
-        2. 학교 자료에 정보가 있으면 정확히 말하고, 없으면 아는 지식으로 조언하되 학교에 확인하라고 해.
-        3. 엉뚱한 등교 시간 같은 정보를 먼저 뱉지 마. 의도를 파악해.
-        
-        [최근 대화]: {context}
+        [지시사항]
+        1. 최근 대화를 참고하여 학생의 질문 의도를 파악해(예: '1학년' 질문이 나오면 이전 주제인 '중간고사'와 연결해).
+        2. 학교 자료에서 답을 찾고, 친절하게 설명해.
+        3. 답이 없으면 선생님께 확인하라고 해.
         """
-        
         response = model.generate_content(system_prompt)
         ai_reply = response.text
         st.markdown(ai_reply)
