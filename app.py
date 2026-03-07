@@ -129,7 +129,7 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리 (문맥 기억 기능 탑재)
+# 6. 💬 채팅 처리 (문맥 기억 구조 최적화)
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     
@@ -140,28 +140,33 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
 
     [답변 가이드라인]
-    1. 함께 전달된 [학교 공식 원본 문서들(PDF/엑셀/이미지)]을 시각/텍스트 적으로 분석하여 '정확하고 직접적인 답'을 최우선으로 찾으십시오.
+    1. 함께 전달된 [학교 공식 원본 문서들]을 분석하여 '정확하고 직접적인 답'을 찾으십시오.
     2. 정답을 찾았다면 선택된 페르소나의 말투에 어울리는 '자연스러운 한두 문장'으로 대답하십시오. 서론이나 불필요한 TMI는 절대 금지입니다.
-    3. 🚨중요🚨: 데이터에 질문에 대한 명확한 답이 없다면, AI의 일반 지식을 바탕으로 유익한 답변을 제공하십시오. 단, 이 경우 마지막에 반드시 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라는 안내 멘트를 덧붙이십시오.
+    3. 데이터에 질문에 대한 명확한 답이 없다면, AI의 일반 지식으로 유익하게 답변하되, 마지막에 반드시 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라고 덧붙이십시오.
     """
     
-    # 🌟 [핵심 변경] 이전 대화 흐름(문맥)을 AI에게 같이 넘겨주기 (최근 3번의 대화 기억)
+    # 최근 3번의 대화 흐름 구성
     recent_context = ""
     if not my_records.empty:
-        recent_context = "[이전 대화 흐름]\n"
+        recent_context = "【최근 대화 맥락】\n"
         for _, row in my_records.tail(3).iterrows():
-            recent_context += f"학생: {row['질문내용']}\n비서: {row['AI답변']}\n"
-        recent_context += "\n위 대화 흐름을 반드시 기억하고, 꼬리 질문일 경우 문맥에 맞게 이어지는 답변을 하십시오.\n\n"
+            recent_context += f"- 학생: {row['질문내용']}\n- 비서: {row['AI답변']}\n"
+        recent_context += "\n🚨주의🚨: 위 대화 맥락을 반드시 기억하십시오! 학생의 새로운 질문이 짧은 단어(예: '1학년')라면, 직전 대화 주제에 대한 꼬리 질문입니다.\n\n"
 
     with st.chat_message("assistant"):
         try:
-            # 시스템 설정 + (최근 대화 기록) + 새로운 질문 조합
-            prompt_parts = [system_prompt, recent_context + f"학생의 새로운 질문: {user_question}"]
+            # 🌟 [해결의 열쇠: 프롬프트 조립 순서 변경]
+            prompt_parts = [system_prompt]
             
-            # 관리자가 세팅한 학교 전체 파일 한꺼번에 투입
+            # 1. 학교 전체 파일을 먼저 투입 (AI가 문서를 먼저 훑어보게 함)
             if global_school_files:
                 prompt_parts.extend(global_school_files)
 
+            # 2. 마지막에 [최근 대화 맥락]과 [새로운 질문]을 묶어서 투입 (가장 강력하게 기억하도록 유도)
+            final_query = recent_context + f"【학생의 새로운 질문】: {user_question}"
+            prompt_parts.append(final_query)
+
+            # 답변 생성
             response = model.generate_content(prompt_parts, stream=True)
             def stream_gen():
                 for chunk in response:
@@ -169,6 +174,7 @@ if user_question := st.chat_input("질문을 입력하세요!"):
                         yield chunk.text
             full_text = st.write_stream(stream_gen())
             
+            # 구글 시트 저장
             new_row = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "학번": student_id, "이름": student_name, "주제": topic,
