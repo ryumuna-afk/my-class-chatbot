@@ -9,7 +9,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="꿈-잇(IT) 비서", page_icon="🤖", layout="wide")
 
-# 2. 제미나이 AI 설정 (안정적인 2.0 모델)
+# 2. 제미나이 AI 설정
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -50,12 +50,20 @@ except:
     st.stop()
 
 # ==========================================
-# 🎨 UI 영역 1: 사이드바 (오직 관리자 전용)
+# 🎨 UI 영역 1: 사이드바 (관리자 전용 & 동기화 버튼 추가)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🔐 교사용 관리 메뉴")
     if st.text_input("비밀번호 입력", type="password") == "0486":
-        file = st.file_uploader("새 PDF 파일 업로드", type="pdf")
+        
+        # 🌟 [신규 추가] 깃허브 업로드 시 수동 동기화 버튼
+        if st.button("🔄 깃허브 데이터 동기화 (캐시 초기화)"):
+            load_all_pdf_data.clear() # 기존 기억 삭제
+            st.success("데이터 동기화 완료! 이제 새 파일을 인식합니다.")
+            st.rerun() # 화면 새로고침
+            
+        st.markdown("---")
+        file = st.file_uploader("새 PDF 파일 업로드 (앱에서 직접)", type="pdf")
         if file:
             with open(file.name, "wb") as f: 
                 f.write(file.getbuffer())
@@ -63,20 +71,18 @@ with st.sidebar:
             st.success("파일 업데이트 완료!")
 
 # ==========================================
-# 🌟 UI 영역 2: 메인 화면 (모바일 최적화)
+# 🌟 UI 영역 2: 메인 화면
 # ==========================================
 st.markdown("### 🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
 st.markdown(f"**반가워요, {student_name} 학생! 환영합니다 🎓**")
 st.markdown("---")
 
-# 스마트폰 화면 공간을 아끼기 위해 성격과 주제를 가로 2칸으로 배치
 col1, col2 = st.columns(2)
 with col1:
-    persona = st.selectbox("🤖 비서 성격을 고르세요", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
+    persona = st.selectbox("🤖 비서 성격", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
 with col2:
     topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
 
-# 주제별 가이드
 if topic == "① 학교생활 적응":
     st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 동아리/봉사활동 관련 정보를 물어보세요.")
 elif topic == "② 진로 탐색":
@@ -86,7 +92,6 @@ elif topic == "③ 상급학년 준비":
 
 st.markdown("---")
 
-# 대화 기록 로드
 try:
     df = conn.read(worksheet="질문기록", ttl=0).dropna(how='all')
     my_records = df[df['학번'] == student_id]
@@ -99,7 +104,7 @@ except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
 # ==========================================
-# 💬 채팅 처리 (AI 지식 활용 + 크로스체크 유도)
+# 💬 채팅 처리
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     with st.chat_message("user"):
@@ -111,8 +116,8 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     [답변 가이드라인]
     1. 아래 [학교 데이터]를 읽고 질문에 대한 '정확하고 직접적인 답'을 최우선으로 찾으십시오.
     2. 데이터에서 정답을 찾았다면, 선택된 페르소나의 말투에 어울리는 '자연스러운 한두 문장'으로 짧고 명확하게 대답하십시오.
-    3. 서론("네, 알려드릴게요", "안녕하세요" 등)이나 엉뚱한 정보(TMI)는 절대 추가하지 마십시오.
-    4. 🚨중요🚨: [학교 데이터]에 질문에 대한 명확한 답이 없다면, "자료에 없습니다"라는 딱딱한 말 대신 AI의 일반 지식을 바탕으로 짧고 유익한 답변을 제공하십시오. 단, 답변 마지막에 반드시 "이는 일반적인 내용이므로, 우리 학교의 정확한 내용은 꼭 담임 선생님이나 학교, 친구들에게 다시 한번 확인해 봐!"라는 취지의 안내 멘트를 페르소나 말투에 맞게 자연스럽게 덧붙이십시오.
+    3. 서론이나 엉뚱한 정보(TMI)는 절대 추가하지 마십시오.
+    4. 🚨중요🚨: [학교 데이터]에 질문에 대한 명확한 답이 없다면, AI의 일반 지식을 바탕으로 유익한 답변을 제공하십시오. 단, 답변 마지막에 반드시 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라는 취지의 안내 멘트를 페르소나 말투에 맞게 자연스럽게 덧붙이십시오.
 
     [학교 데이터]
     {school_knowledge}
@@ -138,4 +143,3 @@ if user_question := st.chat_input("질문을 입력하세요!"):
             
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
-
