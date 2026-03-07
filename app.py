@@ -11,14 +11,11 @@ st.set_page_config(page_title="My Secret-ary", page_icon="🤖", layout="wide")
 
 # 2. 제미나이 AI 및 구글 시트 연결
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# 🌟 선생님이 말씀하신 최신 엔진으로 교체! (유료 티어 성능 100% 발휘)
-# 2026년 기준 가장 빠르고 안정적인 모델명을 사용합니다.
+# 유료 티어의 성능을 100% 발휘하는 최신형 엔진
 model = genai.GenerativeModel('gemini-2.0-flash') 
-
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 3. PDF 자료 로드 함수
+# 3. PDF 자료 로드 함수 (캐싱 적용)
 @st.cache_data
 def load_pdf_data():
     text = ""
@@ -32,7 +29,7 @@ def load_pdf_data():
 
 school_knowledge = load_pdf_data()
 
-# 4. 학생 인증 (URL 파라미터 체크)
+# 4. 학생 인증 (비밀코드 체크)
 secret_code = st.query_params.get("id")
 if not secret_code:
     st.error("🚨 선생님이 카톡으로 보내준 '비밀 링크'로 접속해주세요!")
@@ -53,36 +50,61 @@ except Exception:
 # 🎨 UI 영역: 사이드바
 with st.sidebar:
     st.header(f"🧑‍🎓 {student_name} 학생의 방")
-    persona = st.selectbox("🤖 비서 성격", ["꼼꼼한 비서 (J성향)", "유쾌한 비서 (공감형)", "조언형 비서 (코칭형)"])
-    topic = st.selectbox("📌 관심사", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
+    st.markdown("---")
+    persona = st.selectbox("🤖 나의 비서 성격은?", ["꼼꼼한 비서 (J성향)", "유쾌한 비서 (공감형)", "조언형 비서 (코칭형)"])
+    topic = st.selectbox("📌 나의 관심사?", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
 
     st.markdown("---")
     with st.expander("🔐 선생님 전용 (관리자)"):
         admin_pw = st.text_input("비밀번호", type="password")
         if admin_pw == "0486": 
-            st.success("인증 완료!")
+            st.success("관리자 인증 성공!")
             uploaded_file = st.file_uploader("새 PDF 교체하기", type="pdf")
             if uploaded_file:
                 with open("school_info.pdf", "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 load_pdf_data.clear()
-                st.info("✅ 업데이트 완료! 새로고침(F5) 하세요.")
+                st.info("✅ 자료가 교체되었습니다. 새로고침(F5) 하세요.")
+        elif admin_pw:
+            st.error("비밀번호가 틀렸습니다.")
 
-st.title("🤖 My Secret-ary")
+st.title("🤖 My Secret-ary (나만의 진로 비서)")
 
-# 🌟 주제별 질문 가이드 (복구 완료)
+# ==========================================
+# 🌟 주제별 포함 정보 및 질문 안내 (수정 완료!)
+# ==========================================
 if topic == "① 학교생활 적응":
-    st.info("💡 질문 예시: '우리 학교 봉사활동 시간은?', '야간자율학습 신청 방법은?'")
+    st.info(f"""
+    📘 **이곳에는 이런 정보들이 들어있어요!**
+    - 우리 학교의 **연간 학사 일정** 및 주요 행사
+    - **창의적 체험활동(봉사, 동아리)** 관련 규정
+    - **생활규정** (야간자율학습, 일과시간, 복장 등)
+    
+    ❓ **이렇게 물어보세요:** "축제 날짜가 언제야?", "동아리 신청은 어떻게 해?"
+    """)
 elif topic == "② 진로 탐색":
-    st.info("💡 질문 예시: '마케터가 되려면 뭘 준비해?', '내 성격에 맞는 직업은?'")
+    st.info(f"""
+    🔍 **이곳에는 이런 정보들이 들어있어요!**
+    - 계열별 **추천 도서 및 권장 활동**
+    - 전공/직업별 필요한 **핵심 역량** 안내
+    - 우리 학교 선배들의 **진로 진학 사례** 요약
+    
+    ❓ **이렇게 물어보세요:** "간호학과 가려면 어떤 활동이 좋아?", "나는 만들기를 좋아하는데 직업 추천해줘."
+    """)
 elif topic == "③ 상급학년 준비":
-    st.info("💡 질문 예시: '간호학과 가려면 생명과학 필수야?', '2학년 선택과목 추천해줘.'")
+    st.info(f"""
+    🎯 **이곳에는 이런 정보들이 들어있어요!**
+    - **2학년 선택과목** 가이드 (수능 연계 및 전공 적합성)
+    - 학과별 **권장 선택 과목** 리스트
+    - 상급 학년으로 올라가기 전 **체크리스트**
+    
+    ❓ **이렇게 물어보세요:** "공대 가려면 기하를 꼭 들어야 해?", "화학이랑 생명과학 중에 고민돼."
+    """)
 
 st.markdown("---")
 
-# 💬 채팅 내역 로드 및 표시
+# 💬 채팅 내역 로드
 try:
-    # 캐시를 비워 최신 데이터를 가져옵니다.
     df = conn.read(worksheet="질문기록", ttl=0)
     df = df.dropna(how='all')
     my_records = df[df['학번'] == student_id]
@@ -94,7 +116,7 @@ try:
 except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
-# 💬 채팅 입력 및 AI 처리 (스트리밍 최적화)
+# 💬 채팅 처리 (고속 스트리밍 적용)
 if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     with st.chat_message("user"):
         st.write(f"**[{topic}]** {user_question}")
@@ -104,16 +126,16 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     [참고자료] {school_knowledge}
     
     [답변 규칙]
-    - [핵심요약] 태그로 1~2줄 요약.
+    - [핵심요약] 태그로 핵심을 1~2줄 요약.
     - [자세한설명] 태그로 친절한 설명.
     질문: {user_question}
     """
     
     with st.chat_message("assistant"):
         try:
-            # 🚀 유료 티어의 고속 스트리밍 답변 생성
             response = model.generate_content(system_prompt, stream=True)
             
+            # 실시간 타자 효과 생성
             def stream_gen():
                 for chunk in response:
                     if chunk.text:
@@ -121,7 +143,7 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
             
             full_response_text = st.write_stream(stream_gen())
             
-            # 요약본만 추출해서 시트에 저장
+            # 요약본 추출 로직
             try:
                 summary_to_save = full_response_text.split("[자세한설명]")[0].replace("[핵심요약]", "").strip()
             except:
@@ -139,6 +161,6 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
             
         except Exception as e:
             if "ResourceExhausted" in str(e):
-                st.error("🚨 사용량이 너무 많습니다. 1분만 기다려주세요! (유료 반영 대기 중일 수 있습니다)")
+                st.error("🚨 사용량이 많습니다. 1분만 기다려주세요! (유료 티어 동기화 중일 수 있습니다.)")
             else:
                 st.error(f"오류가 발생했습니다: {e}")
