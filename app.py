@@ -72,7 +72,7 @@ st.markdown("---")
 # 스마트폰 화면 공간을 아끼기 위해 성격과 주제를 가로 2칸으로 배치
 col1, col2 = st.columns(2)
 with col1:
-    persona = st.selectbox("🤖 비서 성격", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
+    persona = st.selectbox("🤖 비서 성격을 고르세요", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
 with col2:
     topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
 
@@ -138,3 +138,4 @@ if user_question := st.chat_input("질문을 입력하세요!"):
             
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
+
