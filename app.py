@@ -159,10 +159,11 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     
     # 3. AI 답변 생성 (🚀 스트리밍 적용으로 실시간 타자 효과!)
     with st.chat_message("assistant"):
-        # stream=True 를 넣으면 로딩 없이 글자가 바로바로 타자 쳐집니다!
+        # 1. response는 상자입니다.
         response = model.generate_content(system_prompt, stream=True)
-        # st.write_stream 으로 화면에 실시간 출력하면서 전체 텍스트를 ai_answer 에 담습니다.
-        ai_answer = st.write_stream(response) 
+        
+        # 2. st.write_stream이 그 상자를 뜯어서 내용을 실시간으로 뿌려줍니다!
+        ai_answer = st.write_stream(response)
             
     # 4. 구글 시트용 '핵심요약'만 파이썬 가위로 싹둑 잘라내기!
     try:
@@ -185,4 +186,5 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     
     updated_data = pd.concat([df, new_data], ignore_index=True)
     conn.update(worksheet="질문기록", data=updated_data)
+
 
