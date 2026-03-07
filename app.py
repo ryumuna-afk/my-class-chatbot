@@ -15,28 +15,25 @@ st.set_page_config(
 
 # 2. 제미나이 AI 및 구글 시트 연결
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# 유료 티어 성능을 보장하는 2.0 모델
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 3. 모든 PDF 파일 통합 로드 함수
+# 3. 모든 PDF 통합 로드 함수 (데이터 유실 방지)
 @st.cache_data
 def load_all_pdf_data():
     combined_text = ""
     pdf_files = [f for f in os.listdir(".") if f.endswith(".pdf")]
     
     if not pdf_files:
-        return "현재 학습된 학교 데이터가 없습니다."
+        return "학습된 학교 자료가 없습니다."
 
     for file_name in pdf_files:
         try:
             with open(file_name, "rb") as f:
                 reader = PyPDF2.PdfReader(f)
-                combined_text += f"\n--- 파일 시작: {file_name} ---\n"
+                combined_text += f"\n--- {file_name} 내용 시작 ---\n"
                 for page in reader.pages:
-                    content = page.extract_text()
-                    if content:
-                        combined_text += content + "\n"
+                    combined_text += page.extract_text() + "\n"
         except:
             continue
     return combined_text
@@ -55,7 +52,7 @@ try:
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
 except:
-    st.error("학생 정보를 불러오지 못했습니다.")
+    st.error("인증 정보를 불러오지 못했습니다.")
     st.stop()
 
 # ==========================================
@@ -63,62 +60,43 @@ except:
 # ==========================================
 with st.sidebar:
     st.title("👋 반가워요!")
-    st.subheader(f"{student_name} 학생, 환영합니다!")
+    st.subheader(f"{student_name} 학생!")
     st.markdown("---")
     
     persona = st.selectbox(
-        "🤖 비서의 성격을 골라주세요", 
-        ["다정한 공감 친구 (응원과 격려)", "꼼꼼한 전문 비서 (정확한 정보)", "냉철한 전략가 (핵심 해결책)"]
+        "🤖 비서 성격", 
+        ["다정한 공감 친구", "꼼꼼한 전문 비서", "냉철한 전략가"]
     )
     
-    st.markdown("---")
     topic = st.selectbox(
-        "📌 상담받고 싶은 주제", 
+        "📌 상담 주제", 
         ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"]
     )
 
-    with st.expander("🔐 관리자 시스템 (진단용)"):
-        if st.text_input("Access PW", type="password") == "0486":
-            st.write(f"📂 **학습된 텍스트 길이:** {len(school_knowledge)}자")
-            # 🌟 [진단] 실제 읽어온 텍스트가 있는지 미리보기 (선생님만 확인용)
-            if st.checkbox("학습된 내용 요약 보기"):
-                st.text(school_knowledge[:500] + "...") 
-            
-            file = st.file_uploader("새 PDF 추가", type="pdf")
-            if file:
-                with open(file.name, "wb") as f:
-                    f.write(file.getbuffer())
+    with st.expander("🔐 관리자 (데이터 확인)"):
+        if st.text_input("PW", type="password") == "0486":
+            st.write(f"📝 데이터 크기: {len(school_knowledge)}자")
+            if st.button("캐시 초기화"):
                 load_all_pdf_data.clear()
-                st.success("데이터 업데이트 완료!")
+                st.rerun()
 
 # ==========================================
-# 🌟 메인 화면 (가이드 보강)
+# 🌟 메인 화면 (가이드 가시성 강화)
 # ==========================================
 st.title("🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
 
+# 
+# 요약 설명 (선생님 요청 반영!)
 if topic == "① 학교생활 적응":
-    st.info("""
-    📘 **[학교생활 적응] 이 방에서는 이런 걸 물어봐!**
-    - **학교의 지도:** 시험 기간, 축제 날짜, 일과표(급식/하교 시간)
-    - **생활 규칙:** 복장 규정, 상벌점 제도, 휴대폰 규정, 담임 선생님 번호
-    - **우리들의 활동:** 동아리 신청 기간, 봉사활동 기준
-    """)
+    st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 급식/동아리/봉사활동 정보를 알려줄게!")
 elif topic == "② 진로 탐색":
-    st.info("""
-    🔍 **[진로 탐색] 이 방에서는 이런 걸 물어봐!**
-    - **내 꿈 찾기:** 나에게 맞는 학과 추천 및 직업 탐색
-    - **생기부 관리:** 전공별 권장 도서 리스트 및 교내 활동 제안
-    """)
+    st.info("🔍 **[진로 탐색]** 나에게 맞는 직업/학과 추천과 생기부용 독서/활동을 추천해줄게!")
 elif topic == "③ 상급학년 준비":
-    st.info("""
-    🎯 **[상급학년 준비] 이 방에서는 이런 걸 물어봐!**
-    - **과목 선택:** 2학년 선택과목별 수능 연계 및 특징
-    - **학업 설계:** 전공에 유리한 과목 조합 및 수강 신청 안내
-    """)
+    st.info("🎯 **[상급학년 준비]** 2학년 선택과목 가이드와 수강 신청 꿀팁을 확인해봐!")
 
 st.markdown("---")
 
-# 대화 기록 로드
+# 대화 기록 표시
 try:
     df = conn.read(worksheet="질문기록", ttl=0)
     df = df.dropna(how='all')
@@ -127,49 +105,55 @@ try:
         with st.chat_message("user"):
             st.write(f"**[{row['주제']}]** {row['질문내용']}")
         with st.chat_message("assistant"):
-            st.write(f"{row['AI답변']}")
+            st.write(row['AI답변'])
 except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
-# 💬 채팅 처리 (초강력 입단속 프롬프트)
-if user_question := st.chat_input("질문을 입력하세요!"):
+# 💬 채팅 처리 (유연한 답변 로직)
+if user_question := st.chat_input("궁금한 점을 물어보세요!"):
     with st.chat_message("user"):
         st.write(f"**[{topic}]** {user_question}")
         
-    # 🌟 [개선] 서론 금지, 데이터 우선 검색 지시
+    # 🌟 프롬프트를 부드럽고 명확하게 수정
     system_prompt = f"""
-    너는 고등학교 진로 비서야. 성격은 '{persona}'야.
+    너는 고등학교 진로 비서야. 학생 이름은 {student_name}이야. 
+    성격은 '{persona}' 스타일로 다정하게 대답해줘.
     
-    [명령 - 🚨최우선 순위]
-    1. 인사는 절대 하지 마. "알겠습니다", "도와드릴게요" 같은 서론을 즉시 삭제해.
-    2. [핵심요약]: 아래 제공된 [참고자료]에서 질문에 대한 '구체적인 정답(수치, 전화번호, 날짜 등)'만 딱 1줄로 말해.
-    3. [자세한설명]: 정답에 대한 근거만 짧게 말해. 자료에 없는 내용은 절대 지어내지 말고 "자료에 없습니다"라고 해.
-    4. 질문이 전화번호를 묻는다면, 자료를 샅샅이 뒤져서 숫자 형태의 번호를 출력해.
+    [지침]
+    1. 아래 제공된 [학교 자료]에서 질문에 대한 답을 먼저 찾아봐.
+    2. 자료에 구체적인 내용(전화번호, 날짜 등)이 있다면 반드시 그 내용을 포함해줘.
+    3. 자료에 없더라도 네가 아는 상식 내에서 학생에게 도움이 될 따뜻한 조언을 해줘.
+    4. 답변은 [핵심요약]과 [자세한설명]으로 나누어 작성해줘.
     
-    [참고자료]
+    [학교 자료]
     {school_knowledge}
     """
     
     with st.chat_message("assistant"):
         try:
+            # 🚀 스트리밍 생성
             response = model.generate_content(system_prompt, stream=True)
+            
+            # 실시간으로 화면에 출력 (이 코드가 답변을 즉시 보여줍니다)
             def stream_gen():
                 for chunk in response:
                     if chunk.text: yield chunk.text
+            
             full_text = st.write_stream(stream_gen())
             
-            # 저장용 요약본
-            try:
+            # 저장용 요약본 (태그가 없어도 전체 내용을 저장하도록 안전장치)
+            if "[자세한설명]" in full_text:
                 summary = full_text.split("[자세한설명]")[0].replace("[핵심요약]", "").strip()
-            except:
-                summary = full_text
+            else:
+                summary = full_text[:100] # 태그가 없으면 앞부분만 저장
             
-            # 시트 저장
+            # 구글 시트에 기록 저장
             new_row = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "학번": student_id, "이름": student_name, "주제": topic,
-                "비서성격": persona, "질문내용": user_question, "AI답변": summary
+                "비서성격": persona, "질문내용": user_question, "AI답변": full_text # 시트에는 전체 답변 저장
             }])
             conn.update(worksheet="질문기록", data=pd.concat([df, new_row], ignore_index=True))
+            
         except Exception as e:
-            st.error(f"상담 중 오류: {e}")
+            st.error(f"상담 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요! ({e})")
