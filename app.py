@@ -137,28 +137,41 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
     with st.chat_message("user"):
         st.write(f"**[{topic}]** {user_question}")
         
-    # 2. 제미나이 AI에게 프롬프트(명령) 내리기
+    # 2. 제미나이 AI 프롬프트 (요약과 상세 분리 지시!)
     system_prompt = f"""
     너는 고등학교 1학년 학생의 진로와 학교생활을 돕는 친절한 AI 비서야.
-    학생이 선택한 너의 성격은 '{persona}'야. 이 성격에 완벽하게 빙의해서 대답해줘.
+    학생이 선택한 너의 성격은 '{persona}'야. 
     
     [우리 학교 맞춤형 자료]
     {school_knowledge}
     
-    위 학교 자료를 최우선으로 참고해서, 다음 학생의 질문에 빠르고 정확하게 대답해줘. 
-    자료에 없는 내용이라면 일반적인 고등학생 수준에 맞춰서 조언해줘.
+    [답변 규칙] - 🚨매우 중요🚨
+    자료를 참고해서 대답하되, 반드시 아래 두 가지 태그를 사용해서 대답해줘.
+    
+    [핵심요약]
+    (여기에 1~2줄로 가장 중요한 핵심 결론만 짧게 요약해줘)
+    
+    [자세한설명]
+    (여기에 학생이 이해하기 쉽게 구체적이고 친절한 이유나 설명을 적어줘)
     
     학생 질문: {user_question}
     """
     
-    # AI 답변 생성 (스피너로 로딩 효과 주기)
+    # 3. AI 답변 생성 (🚀 스트리밍 적용으로 실시간 타자 효과!)
     with st.chat_message("assistant"):
-        with st.spinner("비서가 자료를 검토하며 답변을 작성 중입니다..."):
-            response = model.generate_content(system_prompt)
-            ai_answer = response.text
-            st.write(ai_answer)
+        # stream=True 를 넣으면 로딩 없이 글자가 바로바로 타자 쳐집니다!
+        response = model.generate_content(system_prompt, stream=True)
+        # st.write_stream 으로 화면에 실시간 출력하면서 전체 텍스트를 ai_answer 에 담습니다.
+        ai_answer = st.write_stream(response) 
             
-    # 3. 질문과 AI 답변을 '질문기록' 시트에 함께 저장
+    # 4. 구글 시트용 '핵심요약'만 파이썬 가위로 싹둑 잘라내기!
+    try:
+        # '[자세한설명]' 이라는 글자를 기준으로 반갈죽 한 뒤, 앞부분([0])만 가져오기
+        summary_for_sheet = ai_answer.split("[자세한설명]")[0].replace("[핵심요약]", "").strip()
+    except Exception:
+        summary_for_sheet = ai_answer # 혹시라도 AI가 말을 안 들어서 에러가 나면 통째로 저장
+        
+    # 5. 구글 시트에 질문과 '요약본'만 저장 (데이터 용량 절약!)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     new_data = pd.DataFrame([{
         "날짜": now,
@@ -167,9 +180,9 @@ if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
         "주제": topic,
         "비서성격": persona,
         "질문내용": user_question,
-        "AI답변": ai_answer
+        "AI답변": summary_for_sheet  # 🌟 긴 전체 답변 대신 요약본만 저장!
     }])
     
     updated_data = pd.concat([df, new_data], ignore_index=True)
-
     conn.update(worksheet="질문기록", data=updated_data)
+
