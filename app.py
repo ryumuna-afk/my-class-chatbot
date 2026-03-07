@@ -9,10 +9,9 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="My Secret-ary", page_icon="🤖", layout="wide")
 
-# 2. 제미나이 AI 설정 (Pro 버전 모델로 업그레이드하여 추론 오류 해결)
+# 2. 제미나이 AI 설정 (Pro 모델 유지)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# 문맥 파악과 정보 추출 능력이 가장 뛰어난 Pro 모델 사용
-model = genai.GenerativeModel('gemini-2.5-pro') 
+model = genai.GenerativeModel('gemini-1.5-pro') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # 3. 모든 PDF 데이터 로드
@@ -51,28 +50,34 @@ except:
     st.stop()
 
 # ==========================================
-# 🎨 UI 영역: 사이드바 
+# 🎨 UI 영역 1: 사이드바 (오직 관리자 전용)
 # ==========================================
 with st.sidebar:
-    st.title(f"🎓 {student_name} 학생")
+    st.markdown("### 🔐 교사용 관리 메뉴")
+    if st.text_input("비밀번호 입력", type="password") == "0486":
+        file = st.file_uploader("새 PDF 파일 업로드", type="pdf")
+        if file:
+            with open(file.name, "wb") as f: 
+                f.write(file.getbuffer())
+            load_all_pdf_data.clear()
+            st.success("파일 업데이트 완료!")
+
+# ==========================================
+# 🌟 UI 영역 2: 메인 화면 (모바일 최적화)
+# ==========================================
+# 모바일에서 너무 크지 않도록 st.title 대신 마크다운 h3(###) 사용
+st.markdown("### 🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
+st.markdown(f"**반가워요, {student_name} 학생! 환영합니다 🎓**")
+st.markdown("---")
+
+# 화면 공간을 아끼기 위해 성격과 주제를 가로 2칸으로 배치
+col1, col2 = st.columns(2)
+with col1:
     persona = st.selectbox("🤖 비서 성격", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
+with col2:
     topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
-    
-    st.markdown("---")
-    with st.expander("🔐 교사용 관리 메뉴"):
-        if st.text_input("비밀번호 입력", type="password") == "0486":
-            file = st.file_uploader("새 PDF 파일 업로드", type="pdf")
-            if file:
-                with open(file.name, "wb") as f: 
-                    f.write(file.getbuffer())
-                load_all_pdf_data.clear()
-                st.success("파일 업데이트 완료!")
 
-# ==========================================
-# 🌟 메인 화면
-# ==========================================
-st.title("🤖 My Secret-ary (나만의 진로 비서)")
-
+# 주제별 가이드
 if topic == "① 학교생활 적응":
     st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 동아리/봉사활동 관련 정보를 물어보세요.")
 elif topic == "② 진로 탐색":
@@ -95,7 +100,7 @@ except:
     df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
 
 # ==========================================
-# 💬 채팅 처리 (Pro 모델 전용 엄격한 프롬프트)
+# 💬 채팅 처리 (말투 조정 및 핵심 추출)
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     with st.chat_message("user"):
@@ -104,11 +109,11 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     system_prompt = f"""
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
 
-    [절대 준수 규칙 - 위반 시 심각한 오류 발생]
-    1. 인사말, 맺음말, 서론("네, 알려드릴게요" 등)을 절대 출력하지 마십시오. 바로 정답만 출력하십시오.
-    2. 아래 [학교 데이터]를 꼼꼼히 읽고, 질문에 대한 '정확하고 직접적인 답'만 추출하십시오.
-    3. 질문이 '전화번호'나 '특정 수치'를 묻는다면 데이터에서 해당 형식만 찾아 출력하고, 엉뚱한 학급 역할이나 규정을 출력하지 마십시오.
-    4. [학교 데이터]에 질문에 대한 명확한 답이 없다면, 억지로 지어내거나 다른 내용을 긁어오지 말고 "제공된 학교 자료에는 해당 내용이 없습니다."라고 말한 뒤, AI의 일반 지식으로 짧게 조언하십시오.
+    [답변 가이드라인]
+    1. 아래 [학교 데이터]를 읽고 질문에 대한 '정확하고 직접적인 답'만 찾으십시오.
+    2. 정답을 찾았다면 숫자나 단어만 출력하지 말고, 선택된 페르소나의 말투에 어울리는 '자연스러운 한두 문장'으로 대답하십시오. (예: "담임 선생님의 전화번호는 000-0000입니다.")
+    3. 서론("네, 알려드릴게요" 등)이나 질문과 상관없는 엉뚱한 정보(TMI)는 절대 추가하지 마십시오.
+    4. [학교 데이터]에 질문에 대한 명확한 답이 없다면, "제공된 학교 자료에는 해당 내용이 없습니다."라고 말한 뒤, AI의 일반 지식으로 짧게 조언하십시오.
 
     [학교 데이터]
     {school_knowledge}
@@ -118,7 +123,6 @@ if user_question := st.chat_input("질문을 입력하세요!"):
     
     with st.chat_message("assistant"):
         try:
-            # 스트리밍 출력
             response = model.generate_content(system_prompt, stream=True)
             def stream_gen():
                 for chunk in response:
@@ -126,7 +130,6 @@ if user_question := st.chat_input("질문을 입력하세요!"):
                         yield chunk.text
             full_text = st.write_stream(stream_gen())
             
-            # 구글 시트 저장
             new_row = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "학번": student_id, "이름": student_name, "주제": topic,
