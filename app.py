@@ -10,18 +10,17 @@ import os
 # ==========================================
 st.set_page_config(page_title="꿈-잇(IT) 비서", page_icon="🤖", layout="wide")
 
-# 표 인식과 사진 분석에 가장 강력한 2.0 엔진 사용
+# 표 인식과 사진 분석에 강력한 2.0 엔진 사용
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ==========================================
-# 2. 🌟 학교 공식 자료 자동 로드 (PDF, 엑셀, 이미지 모두 지원)
+# 2. 🌟 학교 공식 자료 로드 (비용 절감을 위해 서랍장 형태로 변경)
 # ==========================================
 @st.cache_data
 def load_global_files():
-    file_parts = []
-    # 깃허브(또는 로컬)에 있는 파일 중 아래 확장자만 골라서 읽음
+    file_dict = {} # 🌟 리스트가 아니라 이름표가 있는 사전(Dictionary)으로 변경!
     valid_extensions = (".pdf", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg")
     target_files = [f for f in os.listdir(".") if f.lower().endswith(valid_extensions)]
     
@@ -29,38 +28,31 @@ def load_global_files():
         try:
             lower_name = file_name.lower()
             
-            # 1. PDF 파일 처리 (Vision 스캔용 바이너리)
+            # 1. PDF 파일
             if lower_name.endswith(".pdf"):
                 with open(file_name, "rb") as f:
-                    file_parts.append({
-                        "mime_type": "application/pdf",
-                        "data": f.read()
-                    })
+                    file_dict[file_name] = {"mime_type": "application/pdf", "data": f.read()}
                     
-            # 2. 엑셀/CSV 파일 처리 (텍스트 표로 자동 변환)
+            # 2. 엑셀/CSV 파일
             elif lower_name.endswith((".xlsx", ".xls", ".csv")):
                 if lower_name.endswith(".csv"):
                     df_file = pd.read_csv(file_name)
                 else:
                     df_file = pd.read_excel(file_name)
                 excel_text = f"\n--- [학교 엑셀/CSV 자료: {file_name}] ---\n{df_file.to_csv(index=False)}\n"
-                file_parts.append(excel_text)
+                file_dict[file_name] = excel_text
                 
-            # 3. 🌟 이미지 파일 처리 (Vision 스캔용 바이너리)
+            # 3. 이미지 파일
             elif lower_name.endswith((".png", ".jpg", ".jpeg")):
                 mime_type = "image/png" if lower_name.endswith(".png") else "image/jpeg"
                 with open(file_name, "rb") as f:
-                    file_parts.append({
-                        "mime_type": mime_type,
-                        "data": f.read()
-                    })
+                    file_dict[file_name] = {"mime_type": mime_type, "data": f.read()}
                     
         except Exception as e: 
             continue
             
-    return file_parts
+    return file_dict
 
-# 앱이 켜질 때 폴더 안의 모든 파일을 읽어들임
 global_school_files = load_global_files()
 
 # ==========================================
@@ -91,13 +83,11 @@ with st.sidebar:
     st.caption("공식 학교 자료 업로드 및 문의 확인")
     
     if st.text_input("비밀번호 입력", type="password") == "0486":
-        # 깃허브에 직접 올렸을 때 누르는 버튼
         if st.button("🔄 깃허브 데이터 동기화 (캐시 초기화)"):
             load_global_files.clear() 
             st.success("동기화 완료! 새 파일을 인식합니다.")
             st.rerun() 
             
-        # 앱에서 바로 올리는 위젯
         file = st.file_uploader("새 학교 자료 업로드", type=["pdf", "xlsx", "xls", "csv", "png", "jpg", "jpeg"])
         if file:
             with open(file.name, "wb") as f: 
@@ -107,7 +97,6 @@ with st.sidebar:
             
         st.markdown("---")
         st.markdown("#### 📋 접수된 학생 문의 확인")
-        # 선생님이 학생들의 문의를 확인할 수 있는 영역
         try:
             inquiry_df = conn.read(worksheet="상담문의", ttl=0).dropna(how='all')
             if not inquiry_df.empty:
@@ -137,7 +126,6 @@ elif topic == "② 진로 탐색":
 elif topic == "③ 상급학년 준비":
     st.info("🎯 **[상급학년 준비]** 선택과목 특징, 전공별 권장 과목 조합을 물어보세요.")
 
-# 🌟 사이드바에서 메인 화면으로 이동한 '선생님께 문의 남기기' 기능
 with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기"):
     st.caption("진로 상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
     inquiry_text = st.text_area("상담/문의 내용", placeholder="예) 다음 주 수요일 점심시간에 진로 상담 가능한가요?", label_visibility="collapsed")
@@ -163,7 +151,6 @@ with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기
 
 st.markdown("---")
 
-# 대화 기록 로드 및 변수 저장
 try:
     df = conn.read(worksheet="질문기록", ttl=0).dropna(how='all')
     my_records = df[df['학번'] == student_id]
@@ -177,39 +164,63 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리
+# 6. 💬 채팅 처리 (요금 폭풍 절감 '사서 AI' 투입)
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     
     with st.chat_message("user"):
         st.write(user_question)
         
-    # 이전 대화 3턴 기억하여 문맥 구성
     recent_context = ""
     if not my_records.empty:
         recent_context = "[이전 대화 맥락]\n"
         for _, row in my_records.tail(3).iterrows():
             recent_context += f"학생: {row['질문내용']}\n비서: {row['AI답변']}\n"
+
+    # 🌟 [요금 절감 1단계] 사서 AI에게 "어떤 파일이 필요한지 파일 이름만 골라내!" 라고 지시
+    selected_file_parts = []
+    if global_school_files:
+        file_names_str = ", ".join(global_school_files.keys())
+        router_prompt = f"""
+        학생 질문: "{user_question}"
+        이전 대화 맥락: "{recent_context}"
+        학교 보유 파일 목록: [{file_names_str}]
+        
+        당신은 자료 분류 사서입니다. 위 학생의 질문(또는 이전 대화와 이어진 꼬리 질문)에 대답하기 위해 꼭 확인해야 할 파일의 이름을 '학교 보유 파일 목록'에서 유추하여 골라주세요.
+        답변 규칙: 파일 이름만 쉼표(,)로 구분해서 적고, 관련 파일이 전혀 없으면 반드시 '없음'이라고만 적어주세요.
+        """
+        try:
+            # 아주 짧은 질문이므로 요금이 거의 안 나옵니다.
+            router_response = model.generate_content(router_prompt)
+            router_answer = router_response.text
+            
+            # 사서가 고른 파일명에 해당하는 진짜 파일 데이터만 서랍에서 꺼내기
+            for fname, fcontent in global_school_files.items():
+                if fname in router_answer:
+                    selected_file_parts.append(fcontent)
+        except:
+            pass
         
     system_prompt = f"""
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
 
     [행동 수칙]
-    1. 🚨주제 이탈 금지🚨: 만약 학생의 질문이 '학교생활 적응', '진로 탐색', '상급학년 준비' 이 3가지 주제와 전혀 관련 없는 내용(예: 게임, 연예인, 일상 잡담 등)이라면, 절대 답변을 생성하지 말고 오직 다음 문장만 출력하십시오: "해당 질문은 제미나이 비서가 답변할 수 없는 주제입니다. 학교생활, 진로, 상급학년 준비와 관련된 질문을 남겨주세요!"
-    2. 질문이 위 3가지 주제에 부합한다면, 함께 전달된 [학교 공식 원본 문서들]을 꼼꼼히 분석하여 정답을 찾으십시오.
-    3. 🚨말투 지시 (매우 중요)🚨: 답변할 때 절대 "제공된 문서에 따르면", "학사 일정 이미지를 확인해 본 결과", "자료를 확인해보니" 같은 기계적인 출처 언급이나 서론을 쓰지 마십시오!! 문서에서 찾은 정보라도 마치 당신이 원래부터 머릿속으로 다 알고 있었던 것처럼, 선택된 페르소나의 말투로 자연스럽게 바로 정답만 말하십시오.
-    4. 아래에 [이전 대화 맥락]이 제공되었다면, 현재 학생의 질문이 짧더라도 이전 대화와 연결되는 '꼬리 질문'인지 파악하고 문맥에 맞게 답변하십시오.
-    5. 데이터에 명확한 답이 없다면 일반 지식으로 답변하되, 반드시 마지막에 "이는 일반적인 내용이므로, 정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라는 안내 멘트를 덧붙이십시오.
-    6. 🚨출력 형식 주의🚨: 시간이나 범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 마크다운 취소선 오류가 발생합니다. 대신 반드시 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오. (예: 16:20-17:10 또는 16시 20분부터 17시 10분까지)
+    1. 🚨주제 이탈 금지🚨: 학교생활 적응, 진로 탐색, 상급학년 준비 이외의 엉뚱한 내용은 답변하지 말고 단호하게 끊어주십시오.
+    2. 질문에 부합한다면, 함께 전달된 [학교 공식 원본 문서들]만 분석하여 정답을 찾으십시오.
+    3. 🚨말투 지시 (매우 중요)🚨: 절대 "문서에 따르면", "확인해 본 결과" 같은 기계적인 출처 언급을 하지 마십시오. 원래부터 머릿속으로 알고 있었던 것처럼 자연스럽게 말하십시오.
+    4. 아래에 [이전 대화 맥락]이 있다면, 문맥에 맞게 답변하십시오.
+    5. 데이터에 답이 없다면 마지막에 "정확한 내용은 학교나 선생님께 꼭 다시 확인해 봐!"라고 덧붙이십시오.
+    6. 🚨출력 형식 주의🚨: 시간/범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
     """
     
     with st.chat_message("assistant"):
         try:
+            # 🌟 [요금 절감 2단계] 사서가 골라준 '딱 필요한 파일'만 넣어서 진짜 답변 생성
             prompt_query = f"{recent_context}\n\n[현재 학생의 질문]: {user_question}"
             prompt_parts = [system_prompt, prompt_query]
             
-            if global_school_files:
-                prompt_parts.extend(global_school_files)
+            if selected_file_parts:
+                prompt_parts.extend(selected_file_parts)
 
             response = model.generate_content(prompt_parts, stream=True)
             def stream_gen():
@@ -227,4 +238,3 @@ if user_question := st.chat_input("질문을 입력하세요!"):
             
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
-
