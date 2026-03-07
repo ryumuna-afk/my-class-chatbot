@@ -16,7 +16,7 @@ model = genai.GenerativeModel('gemini-2.0-flash')
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ==========================================
-# 2. 🌟 학교 공식 자료 로드 (비용 절감을 위해 서랍장 형태로 저장)
+# 2. 🌟 학교 공식 자료 로드 (비용 절감: 서랍장 형태)
 # ==========================================
 @st.cache_data
 def load_global_files():
@@ -126,7 +126,7 @@ elif topic == "② 진로 탐색":
 elif topic == "③ 상급학년 준비":
     st.info("🎯 **[상급학년 준비]** 선택과목 특징, 전공별 권장 과목 조합을 물어보세요.")
 
-# 선생님께 문의 남기기 기능 (메인 화면)
+# 선생님께 문의 남기기 (메인 화면 접이식 메뉴)
 with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기"):
     st.caption("진로 상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
     inquiry_text = st.text_area("상담/문의 내용", placeholder="예) 다음 주 수요일 점심시간에 진로 상담 가능한가요?", label_visibility="collapsed")
@@ -166,7 +166,7 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리 (요금 폭풍 절감 '사서 AI' 투입 + 강력한 환각 방지)
+# 6. 💬 채팅 처리 (사서 AI 추론 능력 강화 + 환각 방지)
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     
@@ -179,7 +179,7 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         for _, row in my_records.tail(3).iterrows():
             recent_context += f"학생: {row['질문내용']}\n비서: {row['AI답변']}\n"
 
-    # 🌟 [요금 절감 1단계] 사서 AI에게 필요한 파일 이름만 골라내라고 지시
+    # 🌟 [요금 절감 1단계] 눈치 빠른 사서 AI (추론형 프롬프트)
     selected_file_parts = []
     if global_school_files:
         file_names_str = ", ".join(global_school_files.keys())
@@ -188,8 +188,13 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         이전 대화 맥락: "{recent_context}"
         학교 보유 파일 목록: [{file_names_str}]
         
-        당신은 자료 분류 사서입니다. 위 학생의 질문(또는 이전 대화와 이어진 꼬리 질문)에 대답하기 위해 꼭 확인해야 할 파일의 이름을 '학교 보유 파일 목록'에서 유추하여 골라주세요.
-        답변 규칙: 파일 이름만 쉼표(,)로 구분해서 적고, 관련 파일이 전혀 없으면 반드시 '없음'이라고만 적어주세요.
+        당신은 눈치가 아주 빠른 자료 분류 전문가입니다. 
+        학생의 질문 내용이 위 파일들 중 '어느 파일 안에 포함되어 있을지' 논리적으로 짐작하고 추론하세요.
+        
+        [추론 가이드]
+        - 파일 이름에 질문한 단어(예: 증명사진)가 직접 없더라도, '규정', '안내문', '가정통신문' 등 해당 내용이 들어있을 확률이 높은 파일을 골라야 합니다.
+        - 애매하면 관련된 파일을 모두 고르세요.
+        - 답변 규칙: 관련된 파일 이름만 쉼표(,)로 구분해서 적으세요. 전혀 관련 없는 질문에만 '없음'이라고 적으세요.
         """
         try:
             router_response = model.generate_content(router_prompt)
