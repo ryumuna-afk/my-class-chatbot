@@ -121,7 +121,7 @@ with col2:
 
 # 🌟 구글 드라이브 폴더 바로가기 단추 🌟
 st.markdown("#### 🔗 학교 공식 자료 바로가기")
-st.link_button("📁 2026학년도 학교안내자료 모음", "여기에_구글드라이브_폴더_링크_붙여넣기", use_container_width=True)
+st.link_button("📁 2026학년도 학교안내자료 모음", "https://drive.google.com/drive/folders/10c4fu9UtAyQGwlUSlm4YeCf5dbacL7Gr", use_container_width=True)
 
 if topic == "① 학교생활 적응":
     st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 동아리/봉사활동 관련 정보를 물어보세요.")
