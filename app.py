@@ -27,13 +27,9 @@ def load_global_files():
     for file_name in target_files:
         try:
             lower_name = file_name.lower()
-            
-            # 1. PDF 파일
             if lower_name.endswith(".pdf"):
                 with open(file_name, "rb") as f:
                     file_dict[file_name] = {"mime_type": "application/pdf", "data": f.read()}
-                    
-            # 2. 엑셀/CSV 파일
             elif lower_name.endswith((".xlsx", ".xls", ".csv")):
                 if lower_name.endswith(".csv"):
                     df_file = pd.read_csv(file_name)
@@ -41,16 +37,12 @@ def load_global_files():
                     df_file = pd.read_excel(file_name)
                 excel_text = f"\n--- [학교 엑셀/CSV 자료: {file_name}] ---\n{df_file.to_csv(index=False)}\n"
                 file_dict[file_name] = excel_text
-                
-            # 3. 이미지 파일
             elif lower_name.endswith((".png", ".jpg", ".jpeg")):
                 mime_type = "image/png" if lower_name.endswith(".png") else "image/jpeg"
                 with open(file_name, "rb") as f:
                     file_dict[file_name] = {"mime_type": mime_type, "data": f.read()}
-                    
         except Exception as e: 
             continue
-            
     return file_dict
 
 global_school_files = load_global_files()
@@ -72,14 +64,12 @@ try:
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
     
-    # 🌟 [추가 기능] 홀랜드 유형 읽어오기 (열 위치 상관없이 이름표로 찾음)
     try:
         student_holland = str(matched_student.iloc[0]['홀랜드유형'])
         if student_holland == "nan" or student_holland.strip() == "":
             student_holland = "아직 검사 안 함"
     except:
-        student_holland = "정보 없음" # 시트에 열이 아직 없을 경우 에러 방지
-        
+        student_holland = "정보 없음" 
 except:
     st.error("서버 연결에 실패했습니다. (학생 명단 확인 불가)")
     st.stop()
@@ -126,29 +116,29 @@ col1, col2 = st.columns(2)
 with col1:
     persona = st.selectbox("🤖 비서 성격", ["다정한 친구", "꼼꼼한 비서", "냉철한 전략가"])
 with col2:
-    topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비"])
+    # 🌟 꼬꼬독 메뉴 추가 🌟
+    topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비", "④ 📚 꼬.꼬.독 (진로 독서)"])
 
-# 🌟 학급 공식 채널 (드라이브 & 캘린더) 바로가기 단추 🌟
 st.markdown("#### 🔗 학급 공식 채널 바로가기")
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     st.link_button("📁 학교안내자료 모음", "https://drive.google.com/drive/folders/10c4fu9UtAyQGwlUSlm4YeCf5dbacL7Gr", use_container_width=True)
 with col_btn2:
-    # 선생님의 실제 구글 캘린더 공유 링크로 나중에 바꿔주세요!
-    st.link_button("📅 우리 반 학급 캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
+    st.link_button("📅 우리 반 학급 캘린더", "여기에_학급캘린더_링크_붙여넣기", use_container_width=True)
 
+# 🌟 선택된 주제에 따른 안내 문구 🌟
 if topic == "① 학교생활 적응":
-    st.info("📘 **[학교생활 적응]** 학교, 담임선생님이 안내한 정보를 물어보세요.")
+    st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 동아리/봉사활동 관련 정보를 물어보세요.")
 elif topic == "② 진로 탐색":
     st.info("🔍 **[진로 탐색]** 직업/학과 가이드, 추천 도서, 진로 설계 사례를 물어보세요.")
 elif topic == "③ 상급학년 준비":
     st.info("🎯 **[상급학년 준비]** 선택과목 특징, 전공별 권장 과목 조합을 물어보세요.")
+elif topic == "④ 📚 꼬.꼬.독 (진로 독서)":
+    st.info("📚 **[꼬.꼬.독 프로젝트]** 읽은 책 제목이나 기억에 남는 내용을 말해주세요! 생각의 크기를 키워줄 '꼬리 질문'을 던져줄게요.")
 
-# 선생님께 문의 남기기 (메인 화면 접이식 메뉴)
-with st.expander("📬 AI 비서가 아닌, 담임선생님께 직접 문의 남기기"):
-    st.caption("상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
+with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기"):
+    st.caption("진로 상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
     inquiry_text = st.text_area("상담/문의 내용", placeholder="예) 다음 주 수요일 점심시간에 진로 상담 가능한가요?", label_visibility="collapsed")
-    
     if st.button("선생님께 전송하기"):
         if inquiry_text:
             try:
@@ -156,7 +146,6 @@ with st.expander("📬 AI 비서가 아닌, 담임선생님께 직접 문의 남
                     inq_df = conn.read(worksheet="상담문의", ttl=0)
                 except:
                     inq_df = pd.DataFrame(columns=["날짜", "학번", "이름", "문의내용"])
-                    
                 new_inq = pd.DataFrame([{
                     "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "학번": student_id, "이름": student_name, "문의내용": inquiry_text
@@ -170,7 +159,6 @@ with st.expander("📬 AI 비서가 아닌, 담임선생님께 직접 문의 남
 
 st.markdown("---")
 
-# 대화 기록 로드
 try:
     df = conn.read(worksheet="질문기록", ttl=0).dropna(how='all')
     my_records = df[df['학번'] == student_id]
@@ -184,7 +172,7 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리 (사서 AI 추론 능력 강화 + 대안 제시 프롬프트 + 실시간 시트 연동)
+# 6. 💬 채팅 처리
 # ==========================================
 if user_question := st.chat_input("질문을 입력하세요!"):
     
@@ -197,7 +185,6 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         for _, row in my_records.tail(3).iterrows():
             recent_context += f"학생: {row['질문내용']}\n비서: {row['AI답변']}\n"
 
-    # [요금 절감 1단계] 눈치 빠른 사서 AI (추론형 프롬프트)
     selected_file_parts = []
     if global_school_files:
         file_names_str = ", ".join(global_school_files.keys())
@@ -205,56 +192,49 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         학생 질문: "{user_question}"
         이전 대화 맥락: "{recent_context}"
         학교 보유 파일 목록: [{file_names_str}]
-        
         당신은 눈치가 아주 빠른 자료 분류 전문가입니다. 
         학생의 질문 내용이 위 파일들 중 '어느 파일 안에 포함되어 있을지' 논리적으로 짐작하고 추론하세요.
-        
-        [추론 가이드]
-        - 파일 이름에 질문한 단어(예: 증명사진)가 직접 없더라도, '규정', '안내문', '가정통신문' 등 해당 내용이 들어있을 확률이 높은 파일을 골라야 합니다.
         - 애매하면 관련된 파일을 모두 고르세요.
         - 답변 규칙: 관련된 파일 이름만 쉼표(,)로 구분해서 적으세요. 전혀 관련 없는 질문에만 '없음'이라고 적으세요.
         """
         try:
             router_response = model.generate_content(router_prompt)
             router_answer = router_response.text
-            
             for fname, fcontent in global_school_files.items():
                 if fname in router_answer:
                     selected_file_parts.append(fcontent)
         except:
             pass
         
-    # 🌟 [최종 완성] 홀랜드 맞춤형 컨설팅 + 드라이브 안내 프롬프트 🌟
+    # 🌟 [꼬꼬독 프롬프트 강력 추가] 🌟
     system_prompt = f"""
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
-    
     [현재 대화 중인 학생의 비밀 프로필]
     - 학생 이름: {student_name}
     - 직업흥미(홀랜드 유형): {student_holland}
+    - 현재 선택한 상담 주제: {topic}
 
     [행동 수칙]
-    1. 🚨주제 이탈 금지🚨: 만약 학생의 질문이 학교생활, 진로 탐색, 상급학년 준비와 관련 없는 내용이라면, 절대 답변하지 말고 단호하게 끊어주십시오.
-    2. 🌟홀랜드 맞춤형 컨설팅 (매우 중요)🌟: 학생이 진로나 선택과목을 물어볼 때, 학생의 홀랜드 유형({student_holland})을 반드시 반영하여 추천해 주십시오. "너는 [해당 홀랜드 유형] 성향이 강하니까, 이런 분야나 이런 과목이 아주 잘 맞을 거야!" 라며 개인화된 조언을 듬뿍 넣어주십시오. (단, '아직 검사 안 함'이거나 '정보 없음'이라면 홀랜드 관련 언급은 자연스럽게 생략하십시오.)
-    3. 🌟드라이브 폴더 최우선 안내🌟:
-       - [선생님이 방금 추가한 실시간 학교 자료] 목록 중에 학생의 질문과 관련된 파일명이나 내용이 있다면, 구구절절 내용을 지어내어 설명하지 마십시오!
-       - 대신 무조건 이렇게 대답하십시오: "💡 질문한 내용은 구글 드라이브에 **[관련 파일명 또는 내용]**(으)로 올라와 있어! 화면 위쪽에 있는 **'📁 학교안내자료 모음'** 단추를 누르면 나오는 공유 폴더에서 직접 열어볼 수 있으니 꼭 확인해 봐~"
-    4. 일반 질문 답변: 질문 내용이 드라이브 안내 목록에 없다면, 함께 제공된 [학교 공식 원본 문서들]을 바탕으로 친절하게 답변해 주십시오. 
-    5. 🚨모를 때의 대처🚨: 자료에도 없고 시트(드라이브 목록)에도 없다면, 절대 지어내지 말고 "제가 가진 자료에는 그 내용이 없네요 ㅠㅠ 선생님께 직접 여쭤보는 건 어때?" 라고 대답하십시오.
-    6. 🚨출력 형식 주의🚨: 시간이나 범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 대신 반드시 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
+    1. 🚨주제 이탈 금지🚨: 만약 학생의 질문이 학교생활, 진로 탐색, 상급학년 준비, 독서와 관련 없는 내용이라면, 절대 답변하지 말고 단호하게 끊어주십시오.
+    2. 🌟꼬.꼬.독 (진로 독서) 모드🌟: 만약 현재 선택한 주제가 '④ 📚 꼬.꼬.독 (진로 독서)'라면, 학생이 언급한 책이나 내용에 대해 정답을 바로 알려주지 마십시오! 대신 학생의 사고력을 확장할 수 있는 예리하고 깊이 있는 '꼬리 질문'을 1~2개 던져주어 학생이 스스로 생각하게 만드십시오.
+    3. 🌟홀랜드 맞춤형 컨설팅🌟: 학생이 진로나 선택과목을 물어볼 때, 학생의 홀랜드 유형({student_holland})을 반영하여 추천해 주십시오. (단, '아직 검사 안 함'이거나 '정보 없음'이면 생략)
+    4. 🌟드라이브 폴더 최우선 안내🌟:
+       - [선생님이 방금 추가한 실시간 학교 자료] 목록에 학생 질문과 관련된 파일명/내용이 있다면: "💡 질문한 내용은 구글 드라이브에 **[관련 파일명 또는 내용]**(으)로 올라와 있어! 화면 위쪽의 **'📁 학교안내자료 모음'** 단추를 누르면 공유 폴더에서 직접 열어볼 수 있으니 꼭 확인해 봐~" 라고 짧게 안내하십시오.
+    5. 일반 질문 답변: 드라이브 안내 목록에 없다면, 함께 제공된 [학교 공식 원본 문서들]을 바탕으로 친절하게 답변해 주십시오. 
+    6. 🚨모를 때의 대처🚨: 자료에도 없고 시트에도 없다면, 절대 지어내지 말고 "제가 가진 자료에는 그 내용이 없네요 ㅠㅠ 선생님께 직접 여쭤보는 건 어때?" 라고 대답하십시오.
+    7. 🚨출력 형식 주의🚨: 시간이나 범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 대신 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
     """
     
     with st.chat_message("assistant"):
         try:
-            # 🌟 구글 시트 '학교자료' 탭 실시간 읽어오기 🌟
             try:
                 school_data_df = conn.read(worksheet="학교자료", ttl=600).dropna(how='all')
                 sheet_context = "\n\n[선생님이 방금 추가한 실시간 학교 자료]\n"
                 for _, row in school_data_df.iterrows():
                     sheet_context += f"- {row['구분']}: {row['내용']}\n"
             except:
-                sheet_context = "" # 탭이 없거나 에러 시 빈칸 처리
+                sheet_context = "" 
 
-            # 사서가 골라준 파일 + 선생님의 실시간 시트 자료 합치기
             prompt_query = f"{recent_context}\n\n[현재 학생의 질문]: {user_question}{sheet_context}"
             prompt_parts = [system_prompt, prompt_query]
             
