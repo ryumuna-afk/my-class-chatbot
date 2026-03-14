@@ -27,13 +27,9 @@ def load_global_files():
     for file_name in target_files:
         try:
             lower_name = file_name.lower()
-            
-            # 1. PDF 파일
             if lower_name.endswith(".pdf"):
                 with open(file_name, "rb") as f:
                     file_dict[file_name] = {"mime_type": "application/pdf", "data": f.read()}
-                    
-            # 2. 엑셀/CSV 파일
             elif lower_name.endswith((".xlsx", ".xls", ".csv")):
                 if lower_name.endswith(".csv"):
                     df_file = pd.read_csv(file_name)
@@ -41,16 +37,12 @@ def load_global_files():
                     df_file = pd.read_excel(file_name)
                 excel_text = f"\n--- [학교 엑셀/CSV 자료: {file_name}] ---\n{df_file.to_csv(index=False)}\n"
                 file_dict[file_name] = excel_text
-                
-            # 3. 이미지 파일
             elif lower_name.endswith((".png", ".jpg", ".jpeg")):
                 mime_type = "image/png" if lower_name.endswith(".png") else "image/jpeg"
                 with open(file_name, "rb") as f:
                     file_dict[file_name] = {"mime_type": mime_type, "data": f.read()}
-                    
         except Exception as e: 
             continue
-            
     return file_dict
 
 global_school_files = load_global_files()
@@ -72,7 +64,6 @@ try:
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
     
-    # 홀랜드 유형 읽어오기 (열 위치 상관없이 이름표로 찾음)
     try:
         student_holland = str(matched_student.iloc[0]['홀랜드유형'])
         if student_holland == "nan" or student_holland.strip() == "":
@@ -128,7 +119,6 @@ with col1:
 with col2:
     topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비", "④ 📚 꼬.꼬.독 (진로 독서)"])
 
-# 🌟 학급 공식 채널 (드라이브 & 캘린더) 바로가기 단추 🌟
 st.markdown("#### 🔗 학급 공식 채널 바로가기")
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
@@ -145,11 +135,9 @@ elif topic == "③ 상급학년 준비":
 elif topic == "④ 📚 꼬.꼬.독 (진로 독서)":
     st.info("📚 **[꼬.꼬.독 프로젝트]** 읽은 책 제목이나 기억에 남는 내용을 말해주세요! 생각의 꼬리를 무는 재미있는 질문을 던져줄게요.")
 
-# 선생님께 문의 남기기 (메인 화면 접이식 메뉴)
 with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기"):
     st.caption("진로 상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
     inquiry_text = st.text_area("상담/문의 내용", placeholder="예) 다음 주 수요일 점심시간에 진로 상담 가능한가요?", label_visibility="collapsed")
-    
     if st.button("선생님께 전송하기"):
         if inquiry_text:
             try:
@@ -157,7 +145,6 @@ with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기
                     inq_df = conn.read(worksheet="상담문의", ttl=0)
                 except:
                     inq_df = pd.DataFrame(columns=["날짜", "학번", "이름", "문의내용"])
-                    
                 new_inq = pd.DataFrame([{
                     "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "학번": student_id, "이름": student_name, "문의내용": inquiry_text
@@ -171,7 +158,6 @@ with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기
 
 st.markdown("---")
 
-# 대화 기록 로드
 try:
     df = conn.read(worksheet="질문기록", ttl=0).dropna(how='all')
     my_records = df[df['학번'] == student_id]
@@ -194,12 +180,10 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         
     recent_context = ""
     if not my_records.empty:
-        recent_context = "[이전 대화 맥락]\n"
-        # 🌟 기억력 대폭 향상: 이전 대화 3개 -> 5개(10번의 티키타카)로 늘림
+        recent_context = "[이전 대화 맥락 (매우 중요)]\n"
         for _, row in my_records.tail(5).iterrows():
             recent_context += f"학생: {row['질문내용']}\n비서: {row['AI답변']}\n"
 
-    # 눈치 빠른 사서 AI (추론형 프롬프트)
     selected_file_parts = []
     if global_school_files:
         file_names_str = ", ".join(global_school_files.keys())
@@ -207,7 +191,6 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         학생 질문: "{user_question}"
         이전 대화 맥락: "{recent_context}"
         학교 보유 파일 목록: [{file_names_str}]
-        
         당신은 눈치가 아주 빠른 자료 분류 전문가입니다. 
         학생의 질문 내용이 위 파일들 중 '어느 파일 안에 포함되어 있을지' 논리적으로 짐작하고 추론하세요.
         - 애매하면 관련된 파일을 모두 고르세요.
@@ -216,14 +199,13 @@ if user_question := st.chat_input("질문을 입력하세요!"):
         try:
             router_response = model.generate_content(router_prompt)
             router_answer = router_response.text
-            
             for fname, fcontent in global_school_files.items():
                 if fname in router_answer:
                     selected_file_parts.append(fcontent)
         except:
             pass
         
-    # 🌟 [꼬꼬독 대화 흐름 완벽 제어] 시스템 프롬프트 🌟
+    # 🌟 [꼬꼬독 조언+질문 콤보 프롬프트] 🌟
     system_prompt = f"""
     당신은 고등학교 진로 상담 비서입니다. (선택된 페르소나: {persona})
     
@@ -234,21 +216,23 @@ if user_question := st.chat_input("질문을 입력하세요!"):
 
     [행동 수칙]
     1. 🚨주제 이탈 금지🚨: 만약 학생의 질문이 학교생활, 진로 탐색, 상급학년 준비, 독서와 관련 없는 내용이라면, 절대 답변하지 말고 단호하게 끊어주십시오.
-    2. 🌟꼬.꼬.독 (진로 독서) 모드 강력 지침🌟: 
-       - 만약 현재 주제가 '④ 📚 꼬.꼬.독 (진로 독서)'라면, 반드시 함께 제공된 **[이전 대화 맥락]**을 확인하여 대화의 흐름을 이어가십시오.
-       - 학생이 이전 질문에 대답을 했다면, 대답을 요약해서 끝내거나 가르치려 들지 마십시오! 
-       - 대신 대답에 대해 폭풍 칭찬과 공감을 해준 뒤, 학생의 대답 내용에서 파생되는 **"한 단계 더 깊은 꼬리 질문 딱 1개"**만 이어서 던지십시오. 대화가 핑퐁처럼 이어져야 합니다.
+    2. 🌟꼬.꼬.독 모드 멘토링 지침 (가장 중요)🌟: 
+       - 현재 주제가 '④ 📚 꼬.꼬.독 (진로 독서)'일 경우, 당신은 학생의 생각을 끌어내면서도 방향을 잡아주는 **유능한 독서 멘토**입니다.
+       - **[이전 대화 맥락]을 반드시 확인하고, 학생이 방금 뱉은 가장 마지막 대답과 100% 연결되게 말하십시오.**
+       - (1단계 - 공감) 학생이 방금 말한 핵심 단어나 문장을 인용하며 폭풍 공감과 칭찬을 해줍니다. 
+       - (2단계 - 조언) 학생의 생각에 살을 붙여줄 수 있는 **'짧고 유익한 조언이나 새로운 시각(전문적 인사이트)'**을 가볍게 하나 제공합니다. (예: "네 말대로 실제 학계에서도 그런 부분을 ~라고 부르며 중요하게 생각한단다.")
+       - (3단계 - 꼬리질문) 조언을 바탕으로, 한 단계 더 깊이 파고드는 **'꼬리 질문 딱 1개'**를 던지십시오.
+       - 🚨주의🚨: 조언이 너무 길어지면 지루해집니다. 짧고 임팩트 있게 멘토링한 뒤, 반드시 '질문'으로 마침표를 찍어 학생이 대답하게 만드십시오.
     3. 🌟홀랜드 맞춤형 컨설팅🌟: 학생이 진로나 선택과목을 물어볼 때, 학생의 홀랜드 유형({student_holland})을 반영하여 추천해 주십시오. (정보가 없으면 생략)
     4. 🌟드라이브 폴더 최우선 안내🌟:
-       - [선생님이 방금 추가한 실시간 학교 자료] 목록에 학생 질문과 관련된 파일명/내용이 있다면: "💡 질문한 내용은 구글 드라이브에 **[관련 파일명 또는 내용]**(으)로 올라와 있어! 화면 위쪽의 **'📁 학교안내자료 모음'** 단추를 누르면 공유 폴더에서 열어볼 수 있어~" 라고 안내하십시오.
-    5. 일반 질문 답변: 드라이브 안내 목록에 없다면, 함께 제공된 [학교 공식 원본 문서들]을 바탕으로 친절하게 답변해 주십시오. 
-    6. 🚨모를 때의 대처🚨: 자료에도 없고 시트(드라이브 목록)에도 없다면, 절대 지어내지 말고 "제가 가진 자료에는 그 내용이 없네요 ㅠㅠ 선생님께 직접 여쭤보는 건 어때?" 라고 대답하십시오.
-    7. 🚨출력 형식 주의🚨: 시간이나 범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 대신 반드시 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
+       - 실시간 학교 자료 목록에 관련된 파일명이 있다면: "💡 질문한 내용은 구글 드라이브에 **[관련 파일명]**(으)로 올라와 있어! 화면 위쪽의 단추를 눌러서 확인해 봐~" 라고 안내하십시오.
+    5. 일반 질문 답변: 드라이브 안내 목록에 없다면, 함께 제공된 학교 공식 문서를 바탕으로 친절하게 답변해 주십시오. 
+    6. 🚨모를 때의 대처🚨: 자료에도 없고 시트에도 없다면, 절대 지어내지 말고 "제가 가진 자료에는 그 내용이 없네요 ㅠㅠ 선생님께 직접 여쭤보는 건 어때?" 라고 대답하십시오.
+    7. 🚨출력 형식 주의🚨: 시간이나 범위 등을 나타낼 때 절대 물결표(~) 기호를 사용하지 마십시오. 대신 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
     """
     
     with st.chat_message("assistant"):
         try:
-            # 구글 시트 '학교자료' 탭 실시간 읽어오기
             try:
                 school_data_df = conn.read(worksheet="학교자료", ttl=600).dropna(how='all')
                 sheet_context = "\n\n[선생님이 방금 추가한 실시간 학교 자료]\n"
@@ -257,7 +241,7 @@ if user_question := st.chat_input("질문을 입력하세요!"):
             except:
                 sheet_context = "" 
 
-            prompt_query = f"{recent_context}\n\n[현재 학생의 질문]: {user_question}{sheet_context}"
+            prompt_query = f"{recent_context}\n\n[학생의 방금 전 대답(현재 질문)]: {user_question}{sheet_context}"
             prompt_parts = [system_prompt, prompt_query]
             
             if selected_file_parts:
