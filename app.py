@@ -145,7 +145,7 @@ with col_btn1:
     st.link_button("📁 학교안내자료 모음", "https://drive.google.com/drive/folders/10c4fu9UtAyQGwlUSlm4YeCf5dbacL7Gr", use_container_width=True)
 with col_btn2:
     # 선생님의 실제 구글 캘린더 공유 링크로 나중에 바꿔주세요!
-    st.link_button("📅 우리 반 학급 캘린더", "여기에_학급캘린더_링크_붙여넣기", use_container_width=True)
+    st.link_button("📅 우리 반 학급 캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
 
 # 🌟 2. 진로 심리검사 바로가기 단추
 st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
