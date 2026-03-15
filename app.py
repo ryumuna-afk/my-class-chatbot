@@ -10,6 +10,25 @@ import os
 # ==========================================
 st.set_page_config(page_title="꿈-잇(IT) 비서", page_icon="🤖", layout="wide")
 
+# 🌟 [디자인 추가] 챗봇 질문 입력창 화려하게 강조하기 CSS 🌟
+st.markdown("""
+<style>
+    /* 챗봇 입력창 테두리 및 그림자 효과 */
+    [data-testid="stChatInput"] {
+        border: 2px solid #FF4B4B !important; /* 눈에 띄는 빨간색 테두리 */
+        border-radius: 15px !important; /* 부드러운 둥근 모서리 */
+        box-shadow: 0px 0px 15px rgba(255, 75, 75, 0.4) !important; /* 네온 빛 그림자 효과 */
+        background-color: #FFF9F9 !important; /* 아주 연한 핑크빛 배경 */
+    }
+    
+    /* 입력창 안의 글씨 크기와 굵기 키우기 */
+    [data-testid="stChatInput"] textarea {
+        font-size: 17px !important;
+        font-weight: bold !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # 표 인식과 사진 분석에 강력한 2.0 엔진 사용
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-2.0-flash') 
@@ -128,7 +147,7 @@ with col_btn2:
     # 선생님의 실제 구글 캘린더 공유 링크로 나중에 바꿔주세요!
     st.link_button("📅 우리 반 학급 캘린더", "여기에_학급캘린더_링크_붙여넣기", use_container_width=True)
 
-# 🌟 2. 진로 심리검사 바로가기 단추 (새로 추가됨!)
+# 🌟 2. 진로 심리검사 바로가기 단추
 st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
 col_test1, col_test2 = st.columns(2)
 with col_test1:
@@ -185,9 +204,9 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리
+# 6. 💬 채팅 처리 (입력창 안내 문구 수정됨)
 # ==========================================
-if user_question := st.chat_input("질문을 입력하세요!"):
+if user_question := st.chat_input("👉 이곳을 터치해서 챗봇에게 대답이나 질문을 입력하세요! 👈"):
     
     with st.chat_message("user"):
         st.write(user_question)
