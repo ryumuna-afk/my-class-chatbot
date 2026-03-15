@@ -148,13 +148,9 @@ with col_btn2:
 with col_btn3:
     st.link_button("📅 학급캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
 
-# 🌟 2. 진로 심리검사 바로가기 단추
+# 🌟 2. 진로 심리검사 바로가기 단추 (1분 컷 삭제, 정밀 진단만 꽉 차게 배치!)
 st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
-col_test1, col_test2 = st.columns(2)
-with col_test1:
-    st.link_button("💡 1분 컷! 퀵 학습성향검사", "https://cures.kr/recommend/jobPreferenceTest.do", use_container_width=True)
-with col_test2:
-    st.link_button("🔍 정밀 진단! 직업흥미검사", "https://www.career.go.kr/cnet/front/examen/inspctMain.do", use_container_width=True)
+st.link_button("🔍 정밀 진단! 커리어넷 직업흥미검사(H형) 하러 가기", "https://www.career.go.kr/cnet/front/examen/inspctMain.do", use_container_width=True)
 
 st.markdown("---")
 
@@ -205,7 +201,7 @@ except:
     my_records = pd.DataFrame()
 
 # ==========================================
-# 6. 💬 채팅 처리 (입력창 안내 문구 강조)
+# 6. 💬 채팅 처리
 # ==========================================
 if user_question := st.chat_input("👉 이곳을 터치해서 챗봇에게 대답이나 질문을 입력하세요! 👈"):
     
