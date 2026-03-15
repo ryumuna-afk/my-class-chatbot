@@ -139,7 +139,7 @@ with col_test2:
 st.markdown("---")
 
 if topic == "① 학교생활 적응":
-    st.info("📘 **[학교생활 적응]** 학사 일정, 생활 규정, 동아리/봉사활동 관련 정보를 물어보세요.")
+    st.info("📘 **[학교생활 적응]** 학교, 담임선생님이 안내한 정보를 물어보세요.")
 elif topic == "② 진로 탐색":
     st.info("🔍 **[진로 탐색]** 직업/학과 가이드, 추천 도서, 진로 설계 사례를 물어보세요.")
 elif topic == "③ 상급학년 준비":
@@ -149,7 +149,7 @@ elif topic == "④ 📚 꼬.꼬.독 (진로 독서)":
 
 # 선생님께 문의 남기기 (메인 화면 접이식 메뉴)
 with st.expander("📬 AI 비서가 아닌, 선생님께 직접 문의 남기기"):
-    st.caption("진로 상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
+    st.caption("상담 예약이나 선생님께 직접 물어보고 싶은 내용을 적어주세요.")
     inquiry_text = st.text_area("상담/문의 내용", placeholder="예) 다음 주 수요일 점심시간에 진로 상담 가능한가요?", label_visibility="collapsed")
     if st.button("선생님께 전송하기"):
         if inquiry_text:
