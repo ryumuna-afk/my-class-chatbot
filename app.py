@@ -10,7 +10,7 @@ import os
 # ==========================================
 st.set_page_config(page_title="꿈-잇(IT) 비서", page_icon="🤖", layout="wide")
 
-# 🌟 [디자인 추가] 챗봇 질문 입력창 화려하게 강조하기 CSS 🌟
+# 🌟 [디자인 추가] 챗봇 입력창 네온사인 및 화이트보드 알림장 스타일 🌟
 st.markdown("""
 <style>
     /* 챗봇 입력창 테두리 및 그림자 효과 */
@@ -25,6 +25,17 @@ st.markdown("""
     [data-testid="stChatInput"] textarea {
         font-size: 17px !important;
         font-weight: bold !important;
+    }
+    
+    /* 선생님의 화이트보드(알림장) 디자인 */
+    .memo-board {
+        background-color: #FFFDE7;
+        padding: 15px 20px;
+        border-radius: 10px;
+        border-left: 6px solid #FFD54F;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        font-size: 16px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -95,13 +106,37 @@ except:
     st.stop()
 
 # ==========================================
-# 4. 🎨 UI 영역 1: 사이드바 (교사 전용 메뉴)
+# 4. 🎨 UI 영역 1: 사이드바 (교사 전용 메뉴 & 화이트보드 입력)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🔐 교사용 관리 메뉴")
-    st.caption("공식 학교 자료 업로드 및 문의 확인")
     
     if st.text_input("비밀번호 입력", type="password") == "0486":
+        
+        # 📌 화이트보드(알림장) 작성 칸
+        st.markdown("---")
+        st.markdown("#### 📝 학급 화이트보드 (공지 띄우기)")
+        
+        try:
+            memo_df = conn.read(worksheet="화이트보드", ttl=0).dropna(how='all')
+            current_memo = str(memo_df.iloc[0]['내용']) if not memo_df.empty else ""
+            if current_memo == "nan": current_memo = ""
+        except:
+            current_memo = ""
+            
+        new_memo = st.text_area("학생들에게 띄울 알림장 내용을 적어주세요. (지우면 알림장이 사라집니다)", value=current_memo, height=150)
+        
+        if st.button("📢 화이트보드 업데이트!"):
+            try:
+                memo_data = pd.DataFrame([{"내용": new_memo}])
+                conn.update(worksheet="화이트보드", data=memo_data)
+                st.success("✅ 업데이트 완료! 학생들 화면에 반영되었습니다.")
+                st.rerun()
+            except Exception as e:
+                st.error("오류! 구글 시트에 '화이트보드' 탭과 A1셀에 '내용'이 있는지 확인해주세요.")
+
+        st.markdown("---")
+        st.markdown("#### 📁 학교 자료 업데이트")
         if st.button("🔄 깃허브 데이터 동기화 (캐시 초기화)"):
             load_global_files.clear() 
             st.success("동기화 완료! 새 파일을 인식합니다.")
@@ -130,6 +165,24 @@ with st.sidebar:
 # ==========================================
 st.markdown("### 🤖 꿈-잇(IT) 비서 : 나만의 진로·학업 메이트")
 st.markdown(f"**반가워요, {student_name} 학생! 환영합니다 🎓**")
+
+# 📌 학생 화면에 화이트보드 내용 띄우기 (글자가 있을 때만 표시)
+try:
+    student_memo_df = conn.read(worksheet="화이트보드", ttl=0).dropna(how='all')
+    if not student_memo_df.empty:
+        board_text = str(student_memo_df.iloc[0]['내용'])
+        if board_text != "nan" and board_text.strip():
+            # 줄바꿈 문자를 HTML <br> 태그로 변환하여 출력
+            formatted_text = board_text.replace('\n', '<br>')
+            st.markdown(f"""
+            <div class="memo-board">
+                <strong>📌 [담임 선생님의 알림장]</strong><br><br>
+                {formatted_text}
+            </div>
+            """, unsafe_allow_html=True)
+except:
+    pass
+
 st.markdown("---")
 
 col1, col2 = st.columns(2)
@@ -148,7 +201,7 @@ with col_btn2:
 with col_btn3:
     st.link_button("📅 학급캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
 
-# 🌟 2. 진로 심리검사 바로가기 단추 (1분 컷 삭제, 정밀 진단만 꽉 차게 배치!)
+# 🌟 2. 진로 심리검사 바로가기 단추
 st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
 st.link_button("🔍 정밀 진단! 커리어넷 직업흥미검사(H형) 하러 가기", "https://www.career.go.kr/cnet/front/examen/inspctMain.do", use_container_width=True)
 
