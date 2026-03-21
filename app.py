@@ -167,7 +167,7 @@ with col_btn2: st.link_button("🏫 클래스룸", "https://classroom.google.com
 with col_btn3: st.link_button("📅 학급캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
 
 st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
-st.link_button("🔍 커리어넷 직업흥미검사(H형)", "https://www.career.go.kr/cnet/front/examen/inspctMain.do", use_container_width=True)
+st.link_button("🔍 커리어넷 직업흥미검사(H형)", "https://www.career.go.kr/cloud/w/inspect/holland/intro", use_container_width=True)
 
 st.markdown("---")
 
