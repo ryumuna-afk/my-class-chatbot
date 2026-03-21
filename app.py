@@ -3,171 +3,285 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 import google.generativeai as genai
-import PyPDF2
 import os
-from PIL import Image # 🌟 이미지 처리 도구 추가
 
 # ==========================================
 # 1. 페이지 및 기본 환경 설정
 # ==========================================
-st.set_page_config(page_title="My Secret-ary", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="진로 메이트", page_icon="🤝", layout="wide")
 
+# 🌟 [디자인 추가] 챗봇 입력창 및 화이트보드 스크롤 스타일 🌟
+st.markdown("""
+<style>
+    /* 챗봇 입력창 테두리 및 그림자 효과 */
+    [data-testid="stChatInput"] {
+        border: 2px solid #4CAF50 !important;
+        border-radius: 15px !important;
+        box-shadow: 0px 0px 15px rgba(76, 175, 80, 0.4) !important;
+        background-color: #F9FFF9 !important;
+    }
+    
+    [data-testid="stChatInput"] textarea {
+        font-size: 17px !important;
+        font-weight: bold !important;
+    }
+    
+    /* 선생님의 화이트보드(알림장) 디자인 */
+    .memo-board {
+        background-color: #FFFDE7;
+        padding: 15px 20px;
+        border-radius: 10px;
+        border-left: 6px solid #FFD54F;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        font-size: 16px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    
+    .memo-board::-webkit-scrollbar { width: 6px; }
+    .memo-board::-webkit-scrollbar-thumb { background-color: #FFD54F; border-radius: 10px; }
+</style>
+""", unsafe_allow_html=True)
+
+# 🔑 API 및 구글 시트 연결
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash') 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ==========================================
-# 2. PDF 자료 초고속 암기
+# 2. 🌟 학교 공식 자료 로드 (RAG)
 # ==========================================
 @st.cache_data
-def load_pdf_data():
-    text = ""
-    if os.path.exists("school_info.pdf"):
+def load_global_files():
+    file_dict = {} 
+    valid_extensions = (".pdf", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg")
+    target_files = [f for f in os.listdir(".") if f.lower().endswith(valid_extensions)]
+    
+    for file_name in target_files:
         try:
-            with open("school_info.pdf", "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                for page in reader.pages:
-                    extracted = page.extract_text()
-                    if extracted:
-                        text += extracted + "\n"
-            return text
-        except Exception as e:
-            return "PDF 파일을 읽는 중 오류가 발생했습니다."
-    else:
-        return "참고할 추가 학교 자료가 없습니다. 일반적인 지식으로 답변합니다."
+            lower_name = file_name.lower()
+            if lower_name.endswith(".pdf"):
+                with open(file_name, "rb") as f: file_dict[file_name] = {"mime_type": "application/pdf", "data": f.read()}
+            elif lower_name.endswith((".xlsx", ".xls", ".csv")):
+                df_file = pd.read_csv(file_name) if lower_name.endswith(".csv") else pd.read_excel(file_name)
+                file_dict[file_name] = f"\n--- [학교 자료: {file_name}] ---\n{df_file.to_csv(index=False)}\n"
+            elif lower_name.endswith((".png", ".jpg", ".jpeg")):
+                mime_type = "image/png" if lower_name.endswith(".png") else "image/jpeg"
+                with open(file_name, "rb") as f: file_dict[file_name] = {"mime_type": mime_type, "data": f.read()}
+        except Exception: continue
+    return file_dict
 
-school_knowledge = load_pdf_data()
+global_school_files = load_global_files()
 
 # ==========================================
-# 3. 비밀코드(난수)로 학생 식별 및 보안 인증
+# 3. 비밀코드 학생 인증
 # ==========================================
 secret_code = st.query_params.get("id")
-
 if not secret_code:
-    st.error("🚨 선생님이 카톡으로 보내준 '나만의 비밀 링크'로 접속해주세요! (예: /?id=x7k9p)")
+    st.error("🚨 올바른 전용 링크로 접속해 주세요.")
     st.stop()
 
 try:
     student_db = conn.read(worksheet="학생명단", ttl=600)
     matched_student = student_db[student_db['비밀코드'] == secret_code]
-    
     if matched_student.empty:
-        st.error("🚨 유효하지 않은 비밀코드입니다. 링크를 다시 확인해주세요.")
+        st.error("🚨 유효하지 않은 비밀코드입니다.")
         st.stop()
-        
     student_id = str(matched_student.iloc[0]['학번'])
     student_name = matched_student.iloc[0]['이름']
-except Exception as e:
-    st.error("학생 명단을 불러오는 데 실패했습니다.")
+    try:
+        student_holland = str(matched_student.iloc[0]['홀랜드유형'])
+        if student_holland == "nan" or student_holland.strip() == "": student_holland = "아직 검사 안 함"
+    except: student_holland = "정보 없음" 
+except:
+    st.error("서버 연결에 실패했습니다. (학생 명단 확인 불가)")
     st.stop()
 
+# 📌 화이트보드 내용 불러오기
+try:
+    student_memo_df = conn.read(worksheet="화이트보드", ttl=0).dropna(how='all')
+    board_text = str(student_memo_df.iloc[0]['내용']) if not student_memo_df.empty else ""
+    if board_text == "nan": board_text = ""
+except: board_text = ""
+
 # ==========================================
-# 4. 🎨 UI 영역: 왼쪽 사이드바 (🌟 이미지 첨부 추가)
+# 4. 🎨 UI 영역 1: 사이드바 (교사 전용)
 # ==========================================
 with st.sidebar:
-    st.header(f"🧑‍🎓 {student_name} 학생의 방")
-    st.markdown("---")
-    persona = st.selectbox("🤖 나의 비서 성격은?", ["꼼꼼한 비서 (J성향)", "유쾌한 비서 (공감형)", "조언형 비서 (코칭형)"])
-    topic = st.selectbox("📌 나의 관심사?", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비(선택과목)"])
-    
-    # 🌟 이미지 업로드 위젯 추가
-    st.markdown("---")
-    st.subheader("📎 이미지 첨부 (선택)")
-    uploaded_image = st.file_uploader("진로 검사지, 시간표 등을 올려주세요!", type=["png", "jpg", "jpeg"])
-    if uploaded_image:
-        st.success("사진이 첨부되었습니다! 아래에 질문을 입력하세요.")
+    st.markdown("### 🔐 교사용 관리 메뉴")
+    teacher_pw = st.secrets.get("TEACHER_PASSWORD", "0486") # secrets에 없으면 기본값 0486
+    if st.text_input("비밀번호 입력", type="password") == teacher_pw:
+        st.markdown("---")
+        st.markdown("#### 📝 학급 화이트보드")
+        new_memo = st.text_area("알림장 내용을 적어주세요.", value=board_text, height=150)
+        if st.button("📢 화이트보드 업데이트!"):
+            conn.update(worksheet="화이트보드", data=pd.DataFrame([{"내용": new_memo}]))
+            st.success("✅ 업데이트 완료!")
+            st.rerun()
 
-st.title("🤖 My Secret-ary (나만의 진로 비서)")
-st.markdown("---")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    with st.expander("🏫 1. 슬기로운 고1 생활"):
-        st.write("✅ 교내 동아리 목록\n✅ 봉사활동 안내\n✅ 야간자율학습 규정")
-with col2:
-    with st.expander("🧭 2. 나를 찾는 진로 탐색"):
-        st.write("✅ 커리어넷 직업 검사\n✅ 나의 롤모델 찾기\n✅ 학과 정보 검색")
-with col3:
-    with st.expander("📚 3. 고교학점제 과목 설계"):
-        st.write("✅ 전공별 권장 과목\n✅ 공동교육과정 안내\n✅ 2학년 시간표 가설계")
-
-st.markdown("---")
-st.subheader("💬 비서와 대화하기")
+        st.markdown("---")
+        st.markdown("#### 📁 학교 자료 업데이트")
+        if st.button("🔄 데이터 동기화"):
+            load_global_files.clear() 
+            st.rerun() 
+            
+        file = st.file_uploader("새 학교 자료 업로드", type=["pdf", "xlsx", "xls", "csv", "png", "jpg", "jpeg"])
+        if file:
+            with open(file.name, "wb") as f: f.write(file.getbuffer())
+            load_global_files.clear()
+            st.success(f"업데이트 완료!")
+            
+        st.markdown("---")
+        st.markdown("#### 📋 접수된 학생 문의 확인")
+        try:
+            inquiry_df = conn.read(worksheet="상담문의", ttl=0).dropna(how='all')
+            if not inquiry_df.empty: st.dataframe(inquiry_df, use_container_width=True)
+            else: st.info("문의가 없습니다.")
+        except: st.error("구글 시트 연동 오류")
 
 # ==========================================
-# 5. 💬 과거 채팅 기록 불러오기
+# 5. 🌟 UI 영역 2: 메인 화면
+# ==========================================
+st.markdown("## 🤝 너의 진로·학업 에이전틱 IT 단짝, 『진로 메이트』")
+st.markdown(f"**반가워요, {student_name} 학생! 나의 미래를 스케치해 볼까요? 🎨**")
+
+if board_text.strip():
+    formatted_text = board_text.replace('\n', '<br>')
+    st.markdown(f"""
+    <div class="memo-board">
+        <strong>📌 [담임 선생님의 알림장]</strong><br><br>{formatted_text}
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+col1, col2 = st.columns(2)
+with col1: persona = st.selectbox("🤖 메이트 성향", ["다정한 멘토", "창의적인 예술가", "냉철한 분석가"])
+with col2: topic = st.selectbox("📌 상담 주제", ["① 학교생활 적응", "② 진로 탐색", "③ 상급학년 준비", "④ 📚 꼬.꼬.독 (진로 독서)", "⑤ ✨ 융합 창직 스튜디오 (나만의 직업 만들기)"])
+
+st.markdown("#### 🔗 학급 공식 채널 바로가기")
+col_btn1, col_btn2, col_btn3 = st.columns(3)
+with col_btn1: st.link_button("📁 학교자료", "https://drive.google.com/drive/folders/10c4fu9UtAyQGwlUSlm4YeCf5dbacL7Gr", use_container_width=True)
+with col_btn2: st.link_button("🏫 클래스룸", "https://classroom.google.com/c/ODQ4MTc2OTgyNDcx?cjc=k2vj6lne", use_container_width=True)
+with col_btn3: st.link_button("📅 학급캘린더", "https://calendar.google.com/calendar/u/0?cid=NWIxZWJlZDYxNjY1Y2VhOTQyMGI1Y2I2MzYzMjE4ZTM0ZWRlMjlhMGI3NzFiZmI1MGM4NzE2Yzg4ZTA3YmE2ZUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t", use_container_width=True)
+
+st.markdown("#### 🧭 나의 진로 DNA 찾기 (심리검사)")
+st.link_button("🔍 커리어넷 직업흥미검사(H형)", "https://www.career.go.kr/cnet/front/examen/inspctMain.do", use_container_width=True)
+
+st.markdown("---")
+
+# 선생님께 문의 남기기 (증강된 교사 모델)
+with st.expander("📬 AI 메이트가 아닌, 담임 선생님께 직접 문의 남기기"):
+    inquiry_text = st.text_area("상담/문의 내용", label_visibility="collapsed")
+    if st.button("선생님께 전송하기"):
+        if inquiry_text:
+            try:
+                try: inq_df = conn.read(worksheet="상담문의", ttl=0)
+                except: inq_df = pd.DataFrame(columns=["날짜", "학번", "이름", "문의내용"])
+                new_inq = pd.DataFrame([{"날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "학번": student_id, "이름": student_name, "문의내용": inquiry_text}])
+                conn.update(worksheet="상담문의", data=pd.concat([inq_df, new_inq], ignore_index=True))
+                st.success("✅ 선생님께 전달되었습니다!")
+            except: st.error("전송 실패!")
+
+st.markdown("---")
+
+# ==========================================
+# 6. 💬 채팅 처리 (실시간 Session State 메모리 적용)
 # ==========================================
 try:
-    df = conn.read(worksheet="질문기록", usecols=list(range(7)), ttl=0)
-except Exception:
-    df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "비서성격", "질문내용", "AI답변"])
+    df = conn.read(worksheet="질문기록", ttl=0).dropna(how='all')
+except:
+    df = pd.DataFrame(columns=["날짜", "학번", "이름", "주제", "메이트성향", "질문내용", "AI답변"])
 
-if not df.empty:
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
     my_records = df[df['학번'] == student_id]
-    for index, row in my_records.iterrows():
-        with st.chat_message("user"):
-            st.write(f"**[{row['주제']}]** {row['질문내용']}")
-        with st.chat_message("assistant"):
-            st.write(f"{row['AI답변']}")
+    if not my_records.empty:
+        for _, row in my_records.tail(8).iterrows(): 
+            st.session_state.chat_history.append({"role": "user", "content": row['질문내용']})
+            st.session_state.chat_history.append({"role": "assistant", "content": row['AI답변']})
 
-# ==========================================
-# 6. 🚀 새로운 질문 입력 및 눈 달린 AI 답변 생성
-# ==========================================
-if user_question := st.chat_input("비서에게 무엇이든 물어보세요!"):
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+if user_question := st.chat_input("👉 이곳을 터치해서 메이트에게 질문이나 생각을 입력하세요! 👈"):
     
-    # 구글 시트에 저장할 때 이미지 첨부 여부 표시
-    display_question = f"[사진 첨부됨] 📸 {user_question}" if uploaded_image else user_question
-
+    st.session_state.chat_history.append({"role": "user", "content": user_question})
     with st.chat_message("user"):
-        st.write(f"**[{topic}]** {display_question}")
+        st.write(user_question)
         
+    recent_context = "👇 [AI가 반드시 기억해야 할 이전 대화 기록] 👇\n"
+    for msg in st.session_state.chat_history[-7:-1]:
+        role_name = "학생의 질문" if msg["role"] == "user" else "너(AI)의 이전 대답"
+        recent_context += f"▶ {role_name}: {msg['content']}\n"
+    recent_context += "--------------------------------------\n"
+
+    # 학교 파일 라우팅 (RAG)
+    selected_file_parts = []
+    if global_school_files:
+        file_names_str = ", ".join(global_school_files.keys())
+        router_prompt = f"""학생 질문: "{user_question}" / 이전 대화 맥락: "{recent_context}"
+        위 질문과 맥락이 학교 보유 파일 [{file_names_str}] 중 어느 것과 관련 있는지 파일명만 쉼표로 적으세요. 없으면 '없음'."""
+        try:
+            router_answer = model.generate_content(router_prompt).text
+            for fname, fcontent in global_school_files.items():
+                if fname in router_answer: selected_file_parts.append(fcontent)
+        except: pass
+        
+    # 🌟 프롬프트 엔지니어링 (AI 두뇌 세팅) 🌟
     system_prompt = f"""
-    너는 고등학교 1학년 학생의 진로와 학교생활을 돕는 전용 AI 비서야.
-    학생이 선택한 너의 성격은 '{persona}'야. 이 성격에 맞게 친절하게 대화하듯 대답해.
+    당신은 고교학점제 맞춤형 진로 길잡이인 '에이전틱 AI 진로 메이트'입니다. (선택된 페르소나: {persona})
+    - 학생 이름: {student_name} / 흥미 유형(홀랜드): {student_holland} / 현재 상담 주제: {topic}
+    """
     
-    [우리 학교 맞춤형 자료]
-    {school_knowledge}
+    if board_text.strip():
+        system_prompt += f"\n[현재 담임 선생님의 화이트보드(알림장) 공지사항]\n{board_text}\n"
+        
+    system_prompt += f"""
+    [행동 수칙]
+    1. 🚨맥락 파악 철칙🚨: 함께 전달된 [이전 대화 기록]을 최우선으로 분석하십시오. 학생이 단답형으로 대답했다면 당신이 직전에 던진 꼬리질문에 대한 답이므로, 절대 되묻지 말고 논리를 전개하십시오.
     
-    【답변 규칙】
-    1. 학생의 질문이 '학교생활', '진로탐색', '상급학년 준비'와 관련이 있다면, 학교 자료와 너의 지식을 바탕으로 친절하게 답변해.
-    2. 🚨 관련 없는 엉뚱한 질문(요리, 연예인, 게임 등)이라면 절대 답하지 말고 단호하게 거절해. ("진로 전용 비서라서 대답할 수 없어!")
-    3. 만약 학생이 '이미지(사진)'를 함께 첨부했다면, 그 이미지를 꼼꼼히 분석해서 질문에 알맞게 대답해줘.
+    2. 🌟[주제 4] 꼬.꼬.독 모드🌟: 학생이 책 내용을 말하면 (1)공감/칭찬 ➡ (2)유익한 조언 추가 ➡ (3)사고를 확장하는 '꼬리 질문 1개'를 던지십시오.
+    
+    3. ✨[주제 5] 융합 창직 스튜디오 모드✨: 
+       - 학생의 홀랜드 유형과 관심사를 융합해 **세상에 없는 새로운 직업(창직)**을 설계하도록 돕는 모드입니다.
+       - 기발한 미래 직업 아이디어를 제안하며 호기심을 자극하십시오.
+       - "이 직업의 명함을 무엇이라고 지을까?", "이 직업이 해결할 1호 과제는 무엇일까?" 등 상상력을 키우는 질문을 던지십시오.
+       - 최종적으로 "이 직업인이 되기 위해 고등학교 2학년 때 어떤 선택과목들을 융합해서 들으면 좋을까?"라고 질문하여, 스스로 선택과목 로드맵을 짜도록 유도하십시오.
+       
+    4. 🚨모를 때의 대처🚨: 학교 자료에 없는 민감한 학사 정보는 "제가 가진 자료에는 없네요. 선생님께 여쭤보는 건 어떨까?"라고 대답하십시오.
+    5. 🚨출력 형식 주의🚨: 물결표(~) 기호 사용 금지. 하이픈(-)이나 한글(부터 ~ 까지)을 사용하십시오.
     """
     
     with st.chat_message("assistant"):
-        with st.spinner("비서가 질문(과 사진)을 분석하며 답변을 작성 중입니다..."):
+        try:
             try:
-                # 🌟 제미나이에게 보낼 준비물 상자 (프롬프트 + 질문)
-                prompt_parts = [system_prompt]
-                
-                # 🌟 사진이 업로드 되었다면 준비물 상자에 사진도 같이 넣기!
-                if uploaded_image:
-                    img = Image.open(uploaded_image)
-                    prompt_parts.append(img)
-                
-                # 마지막으로 학생 질문 넣기
-                prompt_parts.append(f"\n학생 질문: {user_question}")
-                
-                # 제미나이에게 상자 통째로 전달하기
-                response = model.generate_content(prompt_parts)
-                ai_answer = response.text
-                st.write(ai_answer)
-                
-            except Exception as e:
-                ai_answer = f"앗, 비서의 두뇌에 잠시 오류가 생겼어요. 잠시 후 다시 시도해주세요! (오류내용: {e})"
-                st.write(ai_answer)
+                school_data_df = conn.read(worksheet="학교자료", ttl=600).dropna(how='all')
+                sheet_context = "\n\n[실시간 학교 자료]\n"
+                for _, row in school_data_df.iterrows(): sheet_context += f"- {row['구분']}: {row['내용']}\n"
+            except: sheet_context = "" 
+
+            prompt_query = f"{recent_context}\n\n위의 [이전 대화 기록]을 먼저 읽고, 학생의 방금 전 대답(현재 질문)이 직전 대화와 어떻게 이어지는지 파악한 뒤 대답하십시오.\n\n[학생의 현재 질문]: {user_question}{sheet_context}"
+            prompt_parts = [system_prompt, prompt_query]
+            if selected_file_parts: prompt_parts.extend(selected_file_parts)
+
+            response = model.generate_content(prompt_parts, stream=True)
+            def stream_gen():
+                for chunk in response:
+                    if chunk.text: yield chunk.text
+            full_text = st.write_stream(stream_gen())
             
-    # 구글 시트에 저장
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_data = pd.DataFrame([{
-        "날짜": now,
-        "학번": student_id,
-        "이름": student_name, 
-        "주제": topic,
-        "비서성격": persona,
-        "질문내용": display_question, # 사진 첨부 여부가 포함된 질문 내용
-        "AI답변": ai_answer
-    }])
-    
-    updated_data = pd.concat([df, new_data], ignore_index=True)
-    conn.update(worksheet="질문기록", data=updated_data)
+            st.session_state.chat_history.append({"role": "assistant", "content": full_text})
+            
+            # 구글 시트에 질문/답변 기록 저장
+            new_row = pd.DataFrame([{
+                "날짜": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "학번": student_id, "이름": student_name, "주제": topic,
+                "메이트성향": persona, "질문내용": user_question, "AI답변": full_text
+            }])
+            conn.update(worksheet="질문기록", data=pd.concat([df, new_row], ignore_index=True))
+            
+        except Exception as e:
+            st.error(f"오류가 발생했습니다: {e}")
